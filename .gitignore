@@ -1,0 +1,15 @@
+# Office temp files
+~$*
+
+# gstack runtime data (not project code)
+.gstack/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/

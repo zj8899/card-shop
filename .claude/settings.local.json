@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\Git\\\\bin;$env:PATH\"; bash -c \"command -v bun || echo 'BUN_MISSING'\")",
+      "PowerShell(powershell -c \"irm bun.sh/install.ps1 | iex\")",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\Git\\\\bin;$env:USERPROFILE\\\\.bun\\\\bin;$env:PATH\"; bash \"C:\\\\Users\\\\Administrator\\\\.claude\\\\skills\\\\gstack\\\\setup\")",
+      "PowerShell(Test-Path *)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\Git\\\\bin;$env:USERPROFILE\\\\.bun\\\\bin;$env:PATH\"; bash \"C:\\\\Users\\\\Administrator\\\\.claude\\\\skills\\\\gstack\\\\browse\\\\dist\\\\browse\" status 2>&1)",
+      "PowerShell(& \"$env:USERPROFILE\\\\.claude\\\\skills\\\\gstack\\\\browse\\\\dist\\\\browse.exe\" status 2>&1)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\Git\\\\bin;$env:USERPROFILE\\\\.bun\\\\bin;$env:PATH\"; cd \"$env:USERPROFILE\\\\.claude\\\\skills\\\\gstack\"; npx playwright install chromium 2>&1)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\Git\\\\bin;$env:USERPROFILE\\\\.bun\\\\bin;$env:PATH\"; cd \"$env:USERPROFILE\\\\.claude\\\\skills\\\\gstack\"; cmd /c \"npx playwright install chromium\" 2>&1)",
+      "Bash(export PATH=\"/c/Program Files/Git/bin:$HOME/.bun/bin:$PATH\")",
+      "Bash(bash __TRACKED_VAR__/.claude/skills/gstack/setup)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

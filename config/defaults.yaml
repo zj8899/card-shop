@@ -1,0 +1,93 @@
+# MA Period Configuration
+ma_periods:
+  minute: [34, 144, 233]
+  daily: [5, 13, 21, 34, 55, 144, 233, 623]
+
+# Timeframes
+timeframes:
+  minute: ["1min", "5min", "15min", "30min", "60min", "120min"]
+  daily: ["daily"]
+
+# KDJ Parameters
+kdj:
+  n: 9    # RSV period
+  m: 3    # smoothing period for SKDJ
+
+# Trend Detection
+trend:
+  threshold_accelerating: 0.002   # 0.2% change threshold
+  threshold_decelerating: -0.002
+  four_bar_recalc: true
+
+# Buy Conditions
+buy:
+  # Buy Point 1
+  require_below_ma34: true
+  require_new_low: true
+  require_ma144_decelerating: true
+  require_below_ma233: true
+  require_kdj_divergence: true
+  # Buy Point 2
+  days_to_confirm: 3    # Within 3 days of BP1
+  require_reclaim_ma34: true
+
+# Risk Management
+risk:
+  small_cycle: ["1min", "5min", "15min"]
+  large_cycle: ["15min", "30min", "60min"]
+  reduce_rules:
+    1min: "break_34_or_233"
+    5min: "break_233_clear"
+    30min: "break_144"
+    60min: "break_34_3days"
+  clear_rules:
+    5min: "break_233"
+    30min: "break_144_and_233"
+
+# Broker Simulation
+broker:
+  commission: 0.00025    # 0.025%
+  stamp_duty: 0.001      # 0.1% (sell only)
+  slippage: 0.001        # 0.1%
+  min_lot: 100           # 100 shares per lot
+  price_limit: 0.10      # 10% daily limit
+  t_plus_one: true       # T+1 settlement
+
+# Backtest Defaults
+backtest:
+  initial_capital: 1000000   # 100万
+  max_positions: 5
+  risk_per_trade: 0.02       # 2% per trade
+
+# Stock Universe (initial 10)
+universe:
+  - symbol: "000001"
+    name: "平安银行"
+  - symbol: "000002"
+    name: "万科A"
+  - symbol: "000651"
+    name: "格力电器"
+  - symbol: "600036"
+    name: "招商银行"
+  - symbol: "600519"
+    name: "贵州茅台"
+  - symbol: "601318"
+    name: "中国平安"
+  - symbol: "000858"
+    name: "五粮液"
+  - symbol: "002415"
+    name: "海康威视"
+  - symbol: "300750"
+    name: "宁德时代"
+  - symbol: "688981"
+    name: "中芯国际"
+
+# Data Sources
+data_sources:
+  akshare:
+    daily: "stock_zh_a_hist"
+    minute: "stock_zh_a_hist_min_em"
+  mootdx:
+    enabled: false  # requires tdx client
+  tencent:
+    enabled: false  # fallback API

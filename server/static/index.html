@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三才回测实盘 A 股交易系统</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0f1923; color: #c9d1d9; }
+.header { background: linear-gradient(135deg, #1a2332, #0d1117); padding: 16px 24px; border-bottom: 2px solid #2d4a6e; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 22px; color: #e6f1ff; }
+.header .badge { background: #238636; color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+.nav { display: flex; gap: 8px; padding: 8px 24px; background: #161b22; border-bottom: 1px solid #30363d; }
+.nav-btn { padding: 8px 18px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.nav-btn:hover { background: #30363d; border-color: #58a6ff; }
+.nav-btn.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+.row { display: grid; gap: 16px; margin-bottom: 16px; }
+.row-2 { grid-template-columns: 1fr 1fr; }
+.row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.row-1-2 { grid-template-columns: 1fr 2fr; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+.card h3 { font-size: 14px; color: #58a6ff; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #21262d; }
+.chart { width: 100%; height: 420px; }
+.chart-lg { width: 100%; height: 500px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat-item { text-align: center; padding: 12px; background: #0d1117; border-radius: 6px; }
+.stat-value { font-size: 22px; font-weight: bold; color: #e6f1ff; }
+.stat-label { font-size: 11px; color: #8b949e; margin-top: 4px; }
+.stat-up { color: #3fb950; }
+.stat-down { color: #f85149; }
+select, input, button { padding: 8px 12px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #c9d1d9; font-size: 13px; }
+select:focus, input:focus { border-color: #58a6ff; outline: none; }
+.btn { cursor: pointer; font-weight: 600; transition: all 0.2s; }
+.btn-primary { background: #238636; border-color: #238636; color: #fff; }
+.btn-primary:hover { background: #2ea043; }
+.btn-danger { background: #da3633; border-color: #da3633; color: #fff; }
+.btn-info { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.form-row label { font-size: 12px; color: #8b949e; }
+.table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.table th, .table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #21262d; }
+.table th { color: #58a6ff; position: sticky; top: 0; background: #161b22; }
+.table tr:hover { background: #1c2128; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+.tag-buy { background: #1b3a1b; color: #3fb950; }
+.tag-sell { background: #3a1b1b; color: #f85149; }
+.tag-ji { background: #1b3a1b; color: #3fb950; font-size: 16px; font-weight: bold; }
+.tag-ping { background: #3a351b; color: #d2991d; font-size: 16px; font-weight: bold; }
+.tag-xiong { background: #3a1b1b; color: #f85149; font-size: 16px; font-weight: bold; }
+.sancai-column { text-align: center; }
+.sancai-column h3 { text-align: center; border-bottom: 2px solid; padding-bottom: 8px; margin-bottom: 12px; }
+.sancai-column.tiandao h3 { color: #d2991d; border-color: #d2991d; }
+.sancai-column.didao h3 { color: #58a6ff; border-color: #58a6ff; }
+.sancai-column.rendao h3 { color: #3fb950; border-color: #3fb950; }
+.loading { display: flex; align-items: center; justify-content: center; height: 200px; color: #8b949e; }
+.hidden { display: none; }
+#equity-chart { height: 320px; }
+.depth-table { font-size: 12px; border-collapse: collapse; }
+.depth-table th { color: #8b949e; font-size: 11px; padding: 4px 6px; border-bottom: 1px solid #21262d; }
+.depth-table td { padding: 3px 6px; text-align: right; border-bottom: 1px solid #161b22; }
+.depth-table .vol-cell { position: relative; }
+.depth-table .vol-bar { position: absolute; right: 0; top: 1px; bottom: 1px; opacity: 0.2; border-radius: 2px; }
+.depth-table .vol-bar.buy { background: #f85149; }
+.depth-table .vol-bar.sell { background: #3fb950; }
+.depth-table .price-cell { text-align: center; font-weight: bold; min-width: 60px; }
+.flow-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.flow-stat-item { text-align: center; padding: 8px; background: #0d1117; border-radius: 6px; }
+.flow-stat-item .stat-value { font-size: 16px; font-weight: bold; }
+.flow-stat-item .stat-label { font-size: 11px; color: #8b949e; margin-top: 2px; }
+.big-trade-row { display: flex; justify-content: space-between; padding: 3px 8px; border-bottom: 1px solid #161b22; }
+.big-trade-row:hover { background: #1c2128; }
+.big-trade-row .time { color: #8b949e; min-width: 55px; }
+.big-trade-row .price { min-width: 55px; text-align: right; }
+.big-trade-row .vol { min-width: 55px; text-align: right; color: #c9d1d9; }
+.big-trade-row .type-buy { color: #f85149; font-weight: bold; }
+.big-trade-row .type-sell { color: #3fb950; font-weight: bold; }
+.big-trade-row .type-neutral { color: #8b949e; }
+.depth-error { color: #f85149; text-align: center; padding: 20px; font-size: 13px; }
+.sancai-sub-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+.sancai-assessment { text-align: center; padding: 16px; background: #0d1117; border-radius: 8px; margin-bottom: 16px; }
+.sancai-assessment .verdict { font-size: 36px; }
+.sancai-assessment .sub { font-size: 13px; color: #8b949e; margin-top: 4px; }
+.timeline-container { display: flex; flex-direction: column; }
+.timeline-chart { width: 100%; height: 380px; }
+.timeline-events { max-height: 220px; overflow-y: auto; font-size: 12px; background: #0d1117; border-radius: 6px; padding: 8px; margin-top: 8px; }
+.timeline-events::-webkit-scrollbar { width: 4px; }
+.timeline-events::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+.timeline-event { transition: background 0.3s; }
+.timeline-event:hover { background: #1c2128; }
+.range-bar { display: flex; gap: 4px; margin-bottom: 12px; }
+.range-bar .nav-btn { padding: 4px 12px; font-size: 12px; }
+.layer-card { margin-bottom: 8px; }
+.layer-card summary { padding: 8px 12px; background: #1c2128; border-radius: 6px; cursor: pointer; font-size: 13px; color: #c9d1d9; }
+.layer-card summary:hover { background: #21262d; }
+.layer-card .layer-content { padding: 12px; background: #0d1117; border-radius: 0 0 6px 6px; }
+.freshness { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 6px; }
+.freshness.fresh { background: #3fb950; }
+.freshness.stale { background: #d2991d; }
+.freshness.old { background: #f85149; }
+.alignment-bar { text-align: center; padding: 10px; border-radius: 8px; font-size: 16px; font-weight: bold; margin-bottom: 12px; }
+#didao-symbol-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+#didao-symbol-row select { min-width: 180px; }
+.sector-grid { display: flex; flex-direction: column; gap: 1px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>三才回测实盘 A 股交易系统</h1>
+    <span style="font-size:12px;color:#8b949e;">Sancai A-Share Backtest & Trading System v0.1</span>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <span id="rust-status" class="badge" style="background:#30363d;">检测中...</span>
+    <span class="badge" id="server-status">运行中</span>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="switchTab('dashboard')">仪表盘</button>
+  <button class="nav-btn" onclick="switchTab('chart')">K线图</button>
+  <button class="nav-btn" onclick="switchTab('backtest')">回测</button>
+  <button class="nav-btn" onclick="switchTab('sancai')">三才流程</button>
+  <button class="nav-btn" onclick="switchTab('stocks')">数据管理</button>
+</div>
+
+<div class="container">
+
+  <!-- DASHBOARD TAB -->
+  <div id="tab-dashboard">
+    <div class="stats" id="overview-stats">
+      <div class="stat-item"><div class="stat-value" id="stat-equity">--</div><div class="stat-label">总资产</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-return">--</div><div class="stat-label">总收益率</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-sharpe">--</div><div class="stat-label">夏普比率</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-drawdown">--</div><div class="stat-label">最大回撤</div></div>
+    </div>
+    <div class="row row-1-2" style="margin-top:16px;">
+      <div class="card">
+        <h3>三才执行状态</h3>
+        <div class="row row-3" id="sancai-mini">
+          <div class="sancai-column tiandao"><h3>天道</h3><div id="mini-tiandao">--</div></div>
+          <div class="sancai-column didao"><h3>地道</h3><div id="mini-didao">--</div></div>
+          <div class="sancai-column rendao"><h3>人道</h3><div id="mini-rendao">--</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>最近交易信号</h3>
+        <div id="recent-signals" style="max-height:200px;overflow-y:auto;">
+          <p style="color:#8b949e;">运行回测以查看信号</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART TAB -->
+  <div id="tab-chart" class="hidden">
+    <div class="card">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <label>股票</label>
+        <select id="chart-symbol" onchange="loadChart()">
+          <option value="000001">000001 平安银行</option>
+          <option value="000002">000002 万科A</option>
+          <option value="000651">000651 格力电器</option>
+          <option value="600036">600036 招商银行</option>
+          <option value="600519">600519 贵州茅台</option>
+          <option value="601318">601318 中国平安</option>
+          <option value="000858">000858 五粮液</option>
+          <option value="002415">002415 海康威视</option>
+          <option value="300750">300750 宁德时代</option>
+          <option value="688981">688981 中芯国际</option>
+        </select>
+        <label>周期</label>
+        <select id="chart-period" onchange="onPeriodChange()">
+          <option value="daily">日线</option>
+          <option value="120min">120分钟</option>
+          <option value="60min">60分钟</option>
+          <option value="30min">30分钟</option>
+          <option value="15min">15分钟</option>
+          <option value="5min">5分钟</option>
+          <option value="1min">1分钟</option>
+        </select>
+        <button class="btn btn-info" onclick="loadChart()">刷新</button>
+        <span style="margin-left:12px;">图表:</span>
+        <button class="btn" id="btn-tick" onclick="switchChartMode('tick')" style="font-size:12px;">分时图</button>
+        <button class="btn btn-info" id="btn-kline" onclick="switchChartMode('kline')" style="font-size:12px;">K线图</button>
+        <label style="margin-left:auto;">MAs:</label>
+        <span id="ma-toggles"></span>
+      </div>
+      <div id="kline-chart" class="chart-lg"></div>
+      <div id="tick-chart" class="chart-lg" style="display:none;"></div>
+      <div id="tick-panels" style="display:none;">
+        <div class="row row-2" style="margin-top:12px;">
+          <div class="card" id="depth-panel">
+            <h3>5档盘口 <span id="depth-time" style="font-size:11px;color:#8b949e;font-weight:normal;"></span></h3>
+            <div id="depth-content" style="min-height:180px;">
+              <table class="depth-table" style="width:100%;">
+                <thead><tr><th colspan="3" style="text-align:center;color:#3fb950;">卖盘</th><th style="text-align:center;">价格</th><th colspan="3" style="text-align:center;color:#f85149;">买盘</th></tr></thead>
+                <tbody id="depth-body">
+                  <tr><td colspan="7" style="text-align:center;color:#8b949e;padding:40px;">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card" id="flow-panel">
+            <h3>资金流向 <span id="flow-time" style="font-size:11px;color:#8b949e;font-weight:normal;"></span></h3>
+            <div id="flow-stats" class="flow-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">
+              <div class="flow-stat-item" style="text-align:center;padding:8px;background:#0d1117;border-radius:6px;">
+                <div class="stat-value" style="color:#f85149;font-size:16px;" id="flow-buy">--</div>
+                <div class="stat-label">主动买入(万)</div>
+              </div>
+              <div class="flow-stat-item" style="text-align:center;padding:8px;background:#0d1117;border-radius:6px;">
+                <div class="stat-value" style="color:#3fb950;font-size:16px;" id="flow-sell">--</div>
+                <div class="stat-label">主动卖出(万)</div>
+              </div>
+              <div class="flow-stat-item" style="text-align:center;padding:8px;background:#0d1117;border-radius:6px;">
+                <div class="stat-value" style="font-size:16px;" id="flow-net">--</div>
+                <div class="stat-label">净流入(万)</div>
+              </div>
+            </div>
+            <div id="flow-detail" style="font-size:11px;color:#8b949e;margin-bottom:8px;"></div>
+            <div style="margin-bottom:8px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:#8b949e;">
+                <span id="flow-buy-pct">买 0%</span>
+                <span id="flow-sell-pct">卖 0%</span>
+              </div>
+              <div style="height:4px;background:#161b22;border-radius:2px;overflow:hidden;display:flex;">
+                <div id="flow-bar-buy" style="height:100%;background:#f85149;transition:width 0.3s;"></div>
+                <div id="flow-bar-sell" style="height:100%;background:#3fb950;transition:width 0.3s;"></div>
+              </div>
+            </div>
+            <h3 style="font-size:12px;margin-top:8px;">大单成交 <span style="font-size:10px;color:#8b949e;">(≥100手)</span></h3>
+            <div id="big-trades" style="max-height:220px;overflow-y:auto;font-size:11px;">
+              <p style="color:#8b949e;">等待数据...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="kdj-chart" style="width:100%;height:180px;margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- BACKTEST TAB -->
+  <div id="tab-backtest" class="hidden">
+    <div class="row row-2">
+      <div class="card">
+        <h3>回测配置</h3>
+        <div class="form-row">
+          <label>股票池</label>
+          <select id="bt-symbols" multiple style="height:100px;width:160px;">
+            <option value="000001" selected>000001 平安银行</option>
+            <option value="000002">000002 万科A</option>
+            <option value="000651">000651 格力电器</option>
+            <option value="600036">600036 招商银行</option>
+            <option value="600519">600519 贵州茅台</option>
+            <option value="601318">601318 中国平安</option>
+            <option value="000858">000858 五粮液</option>
+            <option value="002415">002415 海康威视</option>
+            <option value="300750">300750 宁德时代</option>
+            <option value="688981">688981 中芯国际</option>
+          </select>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div><label>自选添加</label> <input id="bt-custom-symbols" placeholder="000001,600519" style="width:140px;font-size:12px;" onchange="addCustomSymbols()"></div>
+            <div style="font-size:10px;color:#8b949e;">逗号分隔，自动加入上方股票池</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div><label>周期</label> <select id="bt-period"><option value="daily">日线</option><option value="60min">60分钟</option><option value="30min">30分钟</option><option value="15min">15分钟</option></select></div>
+            <div style="display:flex;gap:8px;">
+              <div><label>起始</label> <input id="bt-start" value="2024-01-01" style="width:100px;"></div>
+              <div><label>截止</label> <input id="bt-end" value="" placeholder="留空=至今" style="width:100px;"></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div><label>资金</label> <input id="bt-capital" value="1000000" type="number" style="width:110px;"></div>
+            <div>
+              <label>模式</label> <select id="bt-mode" onchange="onModeChange()">
+                <option value="simple">简单: KDJ超卖反弹</option>
+                <option value="schools">流派: 多策略共识</option>
+                <option value="strict">严格: 三才BP1</option>
+                <optgroup label="── 单流派回测 ──">
+                  <option value="chan_theory">缠论: 笔-线段-中枢-背驰</option>
+                  <option value="ict">ICT: OB+FVG+流动性猎杀</option>
+                  <option value="price_action">价格行为: K线形态+市场结构</option>
+                  <option value="wyckoff">威科夫: 吸筹/派发+VSA</option>
+                  <option value="morphology">形态学: 双顶底+头肩+三角</option>
+                  <option value="gann">江恩: 角度线+时间周期+九方图</option>
+                  <option value="wave_theory">波浪理论: 5浪推动+ABC调整</option>
+                  <option value="dow_theory">道氏理论: 趋势分级+三阶段</option>
+                </optgroup>
+              </select>
+            </div>
+            <div id="bt-school-tuning" style="display:none; margin-top:10px; padding:10px; background:#0d1117; border-radius:6px; border:1px solid #30363d;">
+              <h4 style="font-size:13px; color:#58a6ff; margin:0 0 8px 0;">信号类型微调</h4>
+              <div id="bt-tuning-toggles" style="display:grid; grid-template-columns:1fr 1fr; gap:3px 16px;"></div>
+              <div style="margin-top:6px; font-size:10px; color:#8b949e;">默认全部启用，取消勾选可禁用对应信号类型</div>
+            </div>
+            <div title="单笔最大亏损占总权益比例，控制仓位大小"><label>单笔风险</label> <input id="bt-risk" value="2" type="number" style="width:60px;" step="0.5" min="0.5" max="10">% <span style="font-size:10px;color:#8b949e;">ⓘ</span></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="runBacktest()" id="bt-run-btn">▶ 运行回测</button>
+        <span id="bt-status" style="margin-left:12px;font-size:13px;"></span>
+      </div>
+      <div class="card">
+        <h3>回测结果</h3>
+        <div class="stats" id="bt-metrics">
+          <div class="stat-item"><div class="stat-value" id="btm-return">--</div><div class="stat-label">总收益率</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-winrate">--</div><div class="stat-label">胜率</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-sharpe">--</div><div class="stat-label">夏普比率</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-drawdown">--</div><div class="stat-label">最大回撤</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-trades">--</div><div class="stat-label">交易次数</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-profit-factor">--</div><div class="stat-label">盈亏比</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-avg-win">--</div><div class="stat-label">均盈</div></div>
+          <div class="stat-item"><div class="stat-value" id="btm-avg-loss">--</div><div class="stat-label">均亏</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row row-2" style="margin-top:16px;">
+      <div class="card">
+        <h3>权益曲线</h3>
+        <div id="equity-chart"></div>
+      </div>
+      <div class="card">
+        <h3>交易记录</h3>
+        <div style="max-height:320px;overflow-y:auto;">
+          <table class="table" id="bt-trades-table">
+            <thead><tr><th>日期</th><th>股票</th><th>方向</th><th>价格</th><th>数量</th><th>原因</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px;" id="bt-kline-row" hidden>
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+          <h3 style="margin:0;">K线交易标记</h3>
+          <label style="font-size:12px;">股票</label>
+          <select id="bt-kline-symbol" onchange="showTradeKline()" style="width:140px;"></select>
+          <span style="font-size:11px;color:#8b949e;"><span style="color:#26a69a;">▲</span>买入点 <span style="color:#ef5350;margin-left:8px;">▼</span>卖出点</span>
+        </div>
+        <div id="bt-kline-chart" class="chart-lg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SANCAI TAB -->
+  <div id="tab-sancai" class="hidden">
+
+    <!-- Sub-tab nav -->
+    <div class="sancai-sub-nav" id="sancai-sub-nav">
+      <button class="nav-btn active" data-tier="tiandao" onclick="switchSancaiSubTab('tiandao')">天道 · 择时</button>
+      <button class="nav-btn" data-tier="didao" onclick="switchSancaiSubTab('didao')">地道 · 选股</button>
+      <button class="nav-btn" data-tier="rendao" onclick="switchSancaiSubTab('rendao')">人道 · 执行</button>
+    </div>
+
+    <!-- Alignment signal bar -->
+    <div id="sancai-alignment-bar" class="alignment-bar" style="display:none;"></div>
+
+    <!-- Time range bar -->
+    <div class="range-bar" id="sancai-range-bar">
+      <button class="nav-btn active" data-days="60" onclick="switchSancaiTimeRange(7)">1周</button>
+      <button class="nav-btn" data-days="30" onclick="switchSancaiTimeRange(30)">1月</button>
+      <button class="nav-btn" data-days="60" onclick="switchSancaiTimeRange(60)">3月</button>
+      <button class="nav-btn" data-days="180" onclick="switchSancaiTimeRange(180)">6月</button>
+    </div>
+
+    <!-- === TIENDAO PAGE === -->
+    <div id="sancai-tiandao">
+      <div class="card sancai-assessment">
+        <div class="verdict" id="tiandao-assessment">--</div>
+        <div class="sub" id="tiandao-assessment-sub">加载中...</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="timeline-container">
+          <div id="tiandao-timeline-chart" class="timeline-chart"></div>
+          <div id="tiandao-event-list" class="timeline-events">
+            <div style="color:#8b949e;text-align:center;padding:30px;">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layer cards -->
+      <details class="layer-card" open>
+        <summary>行情层 — 三大指数</summary>
+        <div class="layer-content" id="tiandao-market-table">加载中...</div>
+      </details>
+      <details class="layer-card">
+        <summary>研报层 — 宏观策略</summary>
+        <div class="layer-content" id="tiandao-research-list">加载中...</div>
+      </details>
+      <details class="layer-card">
+        <summary>基础数据层 — PE/PB分位数 <span id="tiandao-fund-ts"></span></summary>
+        <div class="layer-content" id="tiandao-fundamental-table">加载中...</div>
+      </details>
+      <details class="layer-card">
+        <summary>板块层 — 行业涨跌</summary>
+        <div class="layer-content" id="tiandao-sectors-content">加载中...</div>
+      </details>
+    </div>
+
+    <!-- === DIDAO PAGE === -->
+    <div id="sancai-didao" class="hidden">
+      <div id="didao-symbol-row">
+        <label>股票</label>
+        <select id="didao-symbol" onchange="onDidaoSymbolChange()">
+          <option value="000001">000001 平安银行</option>
+          <option value="000002">000002 万科A</option>
+          <option value="000651">000651 格力电器</option>
+          <option value="600036">600036 招商银行</option>
+          <option value="600519">600519 贵州茅台</option>
+          <option value="601318">601318 中国平安</option>
+          <option value="000858">000858 五粮液</option>
+          <option value="002415">002415 海康威视</option>
+          <option value="300750">300750 宁德时代</option>
+          <option value="688981">688981 中芯国际</option>
+        </select>
+      </div>
+
+      <div class="card sancai-assessment">
+        <div class="verdict" id="didao-assessment">--</div>
+        <div class="sub" id="didao-assessment-sub">加载中...</div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="timeline-container">
+          <div id="didao-timeline-chart" class="timeline-chart"></div>
+          <div id="didao-event-list" class="timeline-events">
+            <div style="color:#8b949e;text-align:center;padding:30px;">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <details class="layer-card" open>
+        <summary>行情层 <span id="didao-market-summary" style="font-size:11px;color:#8b949e;"></span></summary>
+        <div class="layer-content" id="didao-market-chart" style="height:300px;"></div>
+      </details>
+      <details class="layer-card">
+        <summary>研报层 — 个股研报</summary>
+        <div class="layer-content" id="didao-research-list">加载中...</div>
+      </details>
+      <details class="layer-card">
+        <summary>基础数据层 — 财务指标 <span id="didao-flow-summary" style="font-size:11px;color:#8b949e;"></span></summary>
+        <div class="layer-content">
+          <div id="didao-fundamental-table"></div>
+          <div id="didao-ratings-list"></div>
+        </div>
+      </details>
+      <details class="layer-card">
+        <summary>公告层 — 公司公告</summary>
+        <div class="layer-content" id="didao-announcements-list">加载中...</div>
+      </details>
+    </div>
+
+    <!-- === RENDAO PAGE === -->
+    <div id="sancai-rendao" class="hidden">
+      <div class="card sancai-assessment">
+        <div class="verdict" id="rendao-assessment">--</div>
+        <div class="sub">持仓: <span id="rendao-positions-list">--</span></div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div class="timeline-container">
+          <div id="rendao-timeline-chart" class="timeline-chart"></div>
+          <div id="rendao-event-list" class="timeline-events">
+            <div style="color:#8b949e;text-align:center;padding:30px;">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <details class="layer-card" open>
+        <summary>预警面板</summary>
+        <div class="layer-content" id="rendao-alerts-list" style="color:#8b949e;">
+          模拟持仓监控: 跌破MA144预警 | 研报评级下调预警 | 突发公告预警
+        </div>
+      </details>
+      <details class="layer-card">
+        <summary>资金流向</summary>
+        <div class="layer-content" id="rendao-flow-list" style="color:#8b949e;">
+          选择持仓股查看资金流向
+        </div>
+      </details>
+    </div>
+
+  </div>
+
+  <!-- STOCKS TAB -->
+  <div id="tab-stocks" class="hidden">
+    <div class="card">
+      <h3>数据状态</h3>
+      <div id="stock-list" style="font-size:13px;">加载中...</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
