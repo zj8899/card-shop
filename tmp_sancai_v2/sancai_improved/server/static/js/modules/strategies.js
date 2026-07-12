@@ -140,11 +140,22 @@ async function askAI(message) {
     }, { timeoutMs: 60000 });
     const reply = res?.data?.reply || res?.reply || res?.message || '(无回复)';
     const suggestedCode = res?.data?.code || res?.code;
-    store.set({ chat: [...chat, { role: 'assistant', text: reply }], chatBusy: false });
-    if (suggestedCode) store.set({ code: suggestedCode });
+    const validation = res?.data?.validation || res?.validation;
+    const asstMsg = { role: 'assistant', text: reply };
+    if (suggestedCode) {
+      store.set({ code: suggestedCode });
+      asstMsg.validation = validation;  // 承载校验结果，供对话区展示状态+修正按钮
+    }
+    store.set({ chat: [...chat, asstMsg], chatBusy: false });
   } catch (e) {
     store.set({ chat: [...chat, { role: 'assistant', text: `出错: ${e.message}` }], chatBusy: false });
   }
+}
+
+// 用户点「让 AI 修正」：把校验错误组织成引导 prompt，复用 askAI 再请求（逐轮确认）
+function fixWithAI(errors) {
+  const list = (errors || []).map((e, i) => `${i + 1}. ${e}`).join('\n');
+  askAI('上面的代码校验未通过：\n' + list + '\n请修正这些问题，给出完整可运行的策略代码。');
 }
 
 function render(state) {
@@ -242,12 +253,31 @@ function renderEditorPane(state) {
   ]);
 }
 
+function renderAiMsg(m, chatBusy) {
+  const base = h('div', { class: `strat-ai-msg ${m.role}` }, [m.role === 'user' ? '你: ' : 'AI: ', m.text]);
+  const v = m.validation;
+  if (!v) return base;
+  if (v.valid) {
+    return h('div', {}, [base, h('div', { class: 'strat-ai-vok' }, '✅ 代码校验通过，可直接保存')]);
+  }
+  // 校验未通过：展示具体错误 + 「让 AI 修正」按钮（用户每轮确认）
+  return h('div', {}, [
+    base,
+    h('div', { class: 'strat-ai-verr' }, '⚠️ 校验未通过：' + (v.errors || []).join('；')),
+    h('button', {
+      class: 'btn btn-xs', style: 'margin-top:4px;',
+      disabled: chatBusy,
+      onClick: () => fixWithAI(v.errors),
+    }, chatBusy ? '修正中…' : '🔧 让 AI 修正'),
+  ]);
+}
+
 function renderAiPanel(state) {
   return h('div', { class: 'strat-ai-panel' }, [
     h('div', { class: 'strat-ai-panel-head' }, '✦ AI 策略助手'),
     h('div', { class: 'strat-ai-chat' }, state.chat.length
-      ? state.chat.map((m) => h('div', { class: `strat-ai-msg ${m.role}` }, [m.role === 'user' ? '你: ' : 'AI: ', m.text]))
-      : h('span', { style: 'color:var(--text-tertiary);' }, '输入需求，AI 帮你改策略代码。例："加一个跌破MA21止损"')),
+      ? state.chat.map((m) => renderAiMsg(m, state.chatBusy))
+      : h('span', { style: 'color:var(--text-tertiary);' }, '输入需求，AI 帮你写/改策略代码。例："写一个MA20上穿买入、跌破5%止损的策略"')),
     h('div', { class: 'strat-ai-input-row' }, [
       h('input', {
         placeholder: '描述需要修改的内容…',

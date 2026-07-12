@@ -529,13 +529,14 @@ async def strategy_chat(req: StrategyChatRequest):
 
     reply, source = await _call_llm(prompt, STRATEGY_CHAT_SYSTEM, max_tokens=2500)
 
-    # 若回复中含完整代码块且语法合法，作为建议代码返回给前端编辑器
+    # 提取代码块并完整校验（语法/接口/Freqtrade 拦截），把结果回传前端引导逐轮修正
     suggested = _extract_code_block(reply)
+    validation = None
     if suggested:
-        try:
-            ast.parse(suggested)
-        except SyntaxError:
-            suggested = ""  # 语法不合法则不回填, 仅在对话里展示
+        validation = _validate_strategy_code(suggested, strategy or "new_strategy")
+        # 纯语法错才不回填(无法作为代码用)；接口/Freqtrade 错仍回填, 供用户看+让 AI 修正
+        if any(e.startswith("Syntax error") for e in validation["errors"]):
+            suggested = ""
 
-    return {"reply": reply, "code": suggested, "source": source}
+    return {"reply": reply, "code": suggested, "validation": validation, "source": source}
 

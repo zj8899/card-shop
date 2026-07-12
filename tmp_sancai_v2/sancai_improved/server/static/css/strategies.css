@@ -37,5 +37,10 @@
 .strat-ai-chat { flex: 1; padding: 10px 12px; overflow-y: auto; font-size: var(--text-xs); max-height: 220px; line-height: 1.6; }
 .strat-ai-msg { margin-bottom: 8px; }
 .strat-ai-msg.user { color: var(--brand-cyan); }
+.strat-ai-verr { margin: 2px 0 6px; padding: 6px 8px; font-size: var(--text-xs); line-height: 1.5;
+  color: var(--text-danger, #ff6b81); background: rgba(255,77,106,0.08);
+  border: 1px solid rgba(255,77,106,0.35); border-radius: var(--r-sm); }
+.strat-ai-vok { margin: 2px 0 6px; padding: 4px 8px; font-size: var(--text-xs);
+  color: var(--brand-teal, #2dd4bf); }
 .strat-ai-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border-hairline); }
 .strat-ai-input-row input { flex: 1; font-size: var(--text-xs); }
