@@ -74,22 +74,36 @@ async function saveStrategy() {
   let name = state.selected;
   if (state.creating) {
     const nameInput = document.querySelector('.strat-name-input');
-    name = ((nameInput ? nameInput.value : '') || state.newName || '').trim();
-    if (!name) { toast('请先输入策略名', { type: 'error' }); return; }
+    name = (nameInput ? nameInput.value : '') || state.newName || '';
+  }
+  // 统一兜底：name 必须是非空字符串。防止 selected=null（保存成功后未匹配到、
+  // 处于悬空可编辑态时二次保存）把 {name:null} 发给后端 → 422。
+  name = (typeof name === 'string' ? name : '').trim();
+  if (!name) {
+    toast(state.creating ? '请先输入策略名' : '未选中可保存的策略，请用「+ 新建」', { type: 'error' });
+    return;
+  }
+  if (!state.code || state.code.trim().length < 10) {
+    toast('策略代码太短（至少10个字符），请先用 AI 助手生成或手写', { type: 'error' });
+    return;
   }
   store.set({ saving: true });
   try {
     const res = await api.post('/api/strategies/user', { name, code: state.code });
     const savedName = res?.name || res?.data?.name || name;
     toast('已保存', { type: 'success' });
-    store.set({ saving: false, creating: false });
     await loadList();
-    // 尝试选中刚保存的策略。registry key 来自策略类的 name 属性，可能与文件名不同，
-    // 所以在刷新后的列表里按 id/name 匹配，匹配不到就只刷新列表（不强制选中，避免 404）。
+    // 尝试选中刚保存的策略。registry key 来自策略类的 name 属性，可能与文件名不同。
     const items = store.get().list.items || [];
     const hit = items.find(it => it.category === 'user' &&
       (it.id === `user_${savedName}` || it.name === savedName || it.id === `user_${name}`));
-    if (hit) await selectStrategy(hit.id || hit.name);
+    if (hit) {
+      await selectStrategy(hit.id || hit.name);   // 会设 creating:false + 正确的 selected/codeMeta
+    } else {
+      // 匹配不到：回到干净态，避免悬空可编辑导致二次保存发 name=null
+      store.set({ creating: false, selected: null, code: '', codeMeta: null });
+    }
+    store.set({ saving: false });
   } catch (e) {
     store.set({ saving: false });
     toast(`保存失败: ${e.message}`, { type: 'error' });
