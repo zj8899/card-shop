@@ -247,6 +247,19 @@ def _validate_strategy_code(code: str, name: str) -> dict:
                 if top_module in FORBIDDEN_IMPORTS:
                     errors.append(f"Forbidden import from: {node.module}")
 
+    # 核心符号必须从 ..interface 导入（拦截 Freqtrade 的 `from strategy import IStrategy`）
+    _CORE_SYMBOLS = {"IStrategy", "Signal", "SignalType", "BarContext"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if {a.name for a in node.names} & _CORE_SYMBOLS:
+                mod = node.module or ""
+                if not mod.endswith("interface"):
+                    errors.append(
+                        f"IStrategy/Signal 等应从本系统 ..interface 导入，"
+                        f"当前 'from {mod} import ...' 不正确（疑似 Freqtrade 写法）。"
+                        f"正确写法：from ..interface import IStrategy, Signal, SignalType, BarContext"
+                    )
+
     class_defs = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
     if not class_defs:
         errors.append("No class definition found")
@@ -264,10 +277,18 @@ def _validate_strategy_code(code: str, name: str) -> dict:
             required_methods = {"populate_entry_signals", "populate_exit_signals"}
             for cls in class_defs:
                 if cls.name in strat_cls_names:
-                    method_names = {n.name for n in ast.walk(cls) if isinstance(n, ast.FunctionDef)}
-                    missing = required_methods - method_names
+                    methods = {n.name: n for n in ast.walk(cls) if isinstance(n, ast.FunctionDef)}
+                    missing = required_methods - set(methods)
                     if missing:
                         errors.append(f"Missing method(s): {', '.join(missing)}")
+                    # 拦截 Freqtrade 签名：本系统 entry/exit 为 (self, ctx)，Freqtrade 为 (self, dataframe, metadata)
+                    for mname in ("populate_entry_signals", "populate_exit_signals"):
+                        m = methods.get(mname)
+                        if m and len(m.args.args) > 2:
+                            errors.append(
+                                f"{mname} 签名应为 (self, ctx: BarContext)，"
+                                f"不要带 dataframe/metadata 参数（Freqtrade 写法）"
+                            )
 
     return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings}
 
@@ -403,17 +424,73 @@ async def didao_deep_dd(req: DeepDDRequest):
 # ── 策略管理 AI 助手 ──
 
 STRATEGY_CHAT_SYSTEM = """你是三才量化系统的策略编写助手，精通本系统的 IStrategy 策略框架。
-策略类需继承 IStrategy，并实现三个方法：populate_indicators / populate_entry_signals / populate_exit_signals。
+
+⚠️ 本系统不是 Freqtrade！绝对不要用 Freqtrade 的写法。必须严格遵循下面的接口：
+
+【导入】固定这一行，不要用 `from strategy import`：
+    from ..interface import IStrategy, Signal, SignalType, BarContext
+
+【类】继承 IStrategy，必须有 name 类属性（决定策略ID为 user_<name>）：
+    class MyStrategy(IStrategy):
+        name = "my_strategy"
+
+【三个方法（签名必须完全一致）】
+1) def populate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+     只有 df 一个参数（没有 metadata！）。加指标列后 return df。此方法可省略。
+2) def populate_entry_signals(self, ctx: BarContext) -> Optional[Signal]:
+     参数是单根K线的 ctx（不是 dataframe，没有 metadata）。
+     满足买入条件时 `return Signal(type=SignalType.BUY, reason="...", price=ctx.price)`，否则 return None。
+3) def populate_exit_signals(self, ctx: BarContext) -> Optional[Signal]:
+     满足卖出条件时 return Signal(type=SignalType.SELL, ...)，否则 return None。
+   ❌ 不要返回 dataframe，不要设 df['enter_signal']=1 这种 Freqtrade 写法。
+
+【ctx: BarContext 常用字段】
+    ctx.price          当前收盘价(float)
+    ctx.in_position    是否已持仓(bool)
+    ctx.entry_price    持仓成本(float，未持仓为0)
+    ctx.bars_held      持仓K线数(int)
+    ctx.kdj_k/kdj_d/kdj_j   KDJ值
+    ctx.mas            {周期:均线值} 如 ctx.mas.get(20)、ctx.mas.get(34)
+    ctx.volume_ratio   量比
+    ctx.close_arr      截至当前的收盘价数组(list)，可算自定义指标
+    ctx.trend          "up"/"down"/"neutral"
+
+【完整最小示例】
+```python
+from typing import Optional
+import pandas as pd
+from ..interface import IStrategy, Signal, SignalType, BarContext
+
+class MaCrossStrategy(IStrategy):
+    name = "ma_cross"
+
+    def populate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["ma20"] = df["close"].rolling(20).mean()
+        return df
+
+    def populate_entry_signals(self, ctx: BarContext) -> Optional[Signal]:
+        if ctx.in_position:
+            return None
+        ma20 = ctx.mas.get(20, 0)
+        if ma20 and ctx.price > ma20:
+            return Signal(type=SignalType.BUY, reason="上穿MA20", price=ctx.price)
+        return None
+
+    def populate_exit_signals(self, ctx: BarContext) -> Optional[Signal]:
+        if not ctx.in_position:
+            return None
+        if ctx.entry_price > 0 and ctx.price <= ctx.entry_price * 0.95:
+            return Signal(type=SignalType.SELL, reason="止损-5%", price=ctx.price)
+        return None
+```
+
 禁止使用 os / sys / subprocess / socket / 网络请求 等危险模块。
 
-职责：
-1. 解释、审阅用户当前的策略代码，指出问题与改进点；
-2. 按用户要求改写策略代码。
-
-规则：
-- 当你给出完整的策略代码改写时，务必用一个 ```python 代码块包裹**完整可运行**的代码（能直接整体替换原文件）；
-- 若只是解释、建议、答疑，不需要改动代码，就**不要**输出代码块；
-- 回复用中文，简洁务实，先结论后细节。"""
+职责：解释/审阅用户策略、按需求改写。规则：
+- 改写代码时用一个 ```python 代码块包裹**完整可运行**的代码（能整体替换原文件）；
+- 只解释/答疑不改代码时，**不要**输出代码块；
+- 回复用中文，先结论后细节。"""
 
 
 def _extract_code_block(text: str) -> str:
