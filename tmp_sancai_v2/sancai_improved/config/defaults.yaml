@@ -1,0 +1,316 @@
+backtest:
+  initial_capital: 1000000
+  max_positions: 5
+  risk_per_trade: 0.02
+broker:
+  commission: 0.00025
+  min_lot: 100
+  price_limit: 0.1
+  slippage: 0.001
+  stamp_duty: 0.001
+  t_plus_one: true
+buy:
+  days_to_confirm: 3
+  require_below_ma233: true
+  require_below_ma34: true
+  require_kdj_divergence: true
+  require_ma144_decelerating: true
+  require_new_low: true
+  require_reclaim_ma34: true
+data_freshness:
+  alert_on_failure: true
+  auto_fix_after_market: true
+  auto_fix_before_market: true
+  auto_fix_on_startup: false
+  max_staleness_days: 1
+  max_symbols_per_fix: 500
+  rate_limit_delay: 0.3
+data_sources:
+  akshare:
+    daily: stock_zh_a_hist
+    minute: stock_zh_a_hist_min_em
+  baidu:
+    enabled: true
+  baidu_netdisk:
+    default_password: ''
+    enabled: false
+    remote_path: /量化数据
+    source_tag: baidu_netdisk
+    sync_on_startup: false
+  mootdx:
+    enabled: true
+  northbound:
+    enabled: true
+  tencent:
+    enabled: true
+  ths_hot:
+    enabled: true
+data_updates:
+  auto_fill_on_startup: false
+  max_staleness_days: 1
+  max_symbols_per_run: 500
+  rate_limit_delay: 0.3
+kdj:
+  m: 3
+  n: 9
+ma_periods:
+  daily:
+  - 5
+  - 13
+  - 21
+  - 34
+  - 55
+  - 144
+  - 233
+  - 623
+  minute:
+  - 34
+  - 144
+  - 233
+monitor:
+  alert_rules:
+    breakdown_support: true
+    breakout_resistance: true
+    daily_plan_push: true
+    kdj_death_cross: true
+    kdj_golden_cross: true
+    kdj_stagnation: true
+    ma_bearish_alignment: true
+    ma_bullish_alignment: true
+    skdj_golden_cross: false
+    volume_exhaustion: true
+    volume_surge: true
+    weekly_plan_push: true
+  auction:
+    enabled: true
+    extra_candidates: []
+    max_candidates: 30
+  enabled: true
+  feishu_webhook_url: "${FEISHU_WEBHOOK_URL}"
+  poll_interval_minutes: 5
+  reports:
+    auction_review: true
+    morning_close: true
+    morning_elimination: true
+  strategy_mode: ''
+risk:
+  clear_rules:
+    30min: break_144_and_233
+    5min: break_233
+  large_cycle:
+  - 15min
+  - 30min
+  - 60min
+  reduce_rules:
+    1min: break_34_or_233
+    30min: break_144
+    5min: break_233_clear
+    60min: break_34_3days
+  small_cycle:
+  - 1min
+  - 5min
+  - 15min
+school_params:
+  chan_theory:
+    buy1_divergence_lookback: 60
+    buy2_hub_touch_margin: 2.0
+    buy3_breakout_margin: 2.0
+    macd_fast: 12
+    macd_signal: 9
+    macd_slow: 26
+    segment_overlap_min: 3
+    sell1_divergence_lookback: 60
+    stroke_window: 5
+  dow_theory:
+    line_range_pct: 8.0
+    line_window: 60
+    participation_range_pct: 4.0
+    participation_window: 20
+    primary_swing_window: 120
+    secondary_range_window: 30
+    trend_reversal_break_pct: 2.0
+    trend_reversal_vol_mult: 1.3
+    vol_confirm_up_mult: 1.15
+    vol_dry_max_pct: 70.0
+  gann:
+    angle_set: 1x1,1x2,2x1,1x3,3x1,1x4,4x1
+    atr_period: 14
+    cycle_set: 30,45,60,90,120,144,180,270,360
+    retrace_touch_pct: 1.0
+    square_of_nine_tolerance: 1.0
+    swing_window: 5
+  ict:
+    breaker_tolerance: 0.2
+    choch_sensitivity: 1.0
+    fvg_gap_min: 0.01
+    impulse_threshold: 1.5
+    liquidity_sweep_window: 5
+    ob_lookback: 10
+    ote_lower: 0.618
+    ote_upper: 0.79
+    swing_window: 5
+  morphology:
+    box_breakout_vol_mult: 1.2
+    box_range_max_pct: 10.0
+    box_range_min_pct: 3.0
+    cup_depth_min_ratio: 0.7
+    cup_window: 60
+    double_pattern_min_bars: 10
+    double_pattern_similar_pct: 4.0
+    flag_consolidation_max_pct: 4.0
+    flag_pole_move_pct: 6.0
+    hs_head_depth_ratio: 0.97
+    hs_shoulder_similar_pct: 5.0
+    swing_window: 6
+    triangle_breakout_vol_mult: 1.3
+    triangle_flat_edge_pct: 3.0
+  price_action:
+    engulfing_body_mult: 1.5
+    engulfing_vol_min_mult: 1.0
+    fakey_break_pct: 1.0
+    inside_bar_range_max_pct: 70.0
+    pin_bar_body_max_pct: 30.0
+    pin_bar_wick_pct: 60.0
+    sr_touch_pct: 2.0
+    swing_window: 6
+    trendline_touch_pct: 1.0
+  wave_theory:
+    abc_b_retrace_max: 85.0
+    abc_b_retrace_min: 40.0
+    fib_retrace_touch_pct: 1.5
+    macd_fast: 12
+    macd_signal: 9
+    macd_slow: 26
+    swing_window: 5
+    w2_retrace_max: 90.0
+    w2_retrace_min: 35.0
+    w3_min_size_mult: 1.2
+    w4_retrace_max: 50.0
+    w4_retrace_min: 15.0
+  wyckoff:
+    absorption_close_pct: 60.0
+    climax_vol_mult: 2.5
+    effort_spread_max_pct: 70.0
+    effort_vol_mult: 1.5
+    lps_pullback_pct: 3.0
+    sos_move_pct: 1.5
+    sos_spread_mult: 1.3
+    sos_vol_mult: 1.2
+    spring_break_pct: 2.0
+    spring_vol_mult: 1.3
+    utad_break_pct: 2.0
+screener:
+  cache_ttl: 180
+  min_amount: 100000000
+  min_turnover_rate: 1.0
+  strategy_scan:
+    cache_ttl: 300
+    max_workers: 3
+    tail_bars: 300
+    timeout_schools: 360
+    timeout_single: 300
+  top_n: 10
+  weights:
+    gain: 0.25
+    hot_tag: 0.2
+    turnover: 0.3
+    turnover_rate: 0.25
+timeframes:
+  daily:
+  - daily
+  minute:
+  - 1min
+  - 5min
+  - 15min
+  - 30min
+  - 60min
+  - 120min
+tools:
+  browser_agent:
+    cache_ttl: 300
+    enabled: false
+    timeout: 30
+  doubao:
+    api_base: https://ark.cn-beijing.volces.com/api/v3
+    api_key: ''
+    max_tokens: 4096
+    model: doubao-seed-2-0-lite-260428
+    temperature: 0.3
+    vision:
+      max_tokens: 4096
+      model: doubao-1.5-vision-pro-32k
+      temperature: 0.3
+  summarizer:
+    api_base: https://api.deepseek.com
+    api_key: ''
+    cache_ttl: 600
+    max_tokens: 1024
+    model: deepseek-chat
+    provider: deepseek
+  tavily:
+    api_key: ''
+    cache_ttl: 180
+    max_results: 10
+    search_depth: advanced
+  firecrawl:
+    enabled: true
+    api_key: "${FIRECRAWL_API_KEY}"
+    cache_ttl: 600
+    max_sources_per_cycle: 3
+    sources:
+    - name: 中国证券报-宏观
+      url: https://www.cs.com.cn/xwzx/hg/
+      enabled: true
+    - name: 东方财富-A股要闻
+      url: https://finance.eastmoney.com/a/czqyw.html
+      enabled: true
+    - name: 证券时报-快讯
+      url: https://www.stcn.com/article/list/kx.html
+      enabled: true
+    - name: 第一财经-新闻
+      url: https://www.yicai.com/news/
+      enabled: true
+    - name: 雪球-热帖
+      url: https://xueqiu.com/
+      enabled: false
+  scheduled_scans:
+    enabled: true
+    feishu_webhook_url: ''
+    slots:
+    - enabled: true
+      time: '14:45'
+      mode: strict_reverse
+      label: 收盘前追涨突破
+    - enabled: false
+      time: 09:30
+      mode: strict
+      label: 早盘BP1抄底
+    - enabled: false
+      time: '10:00'
+      mode: schools
+      label: 8流派共识买入
+trend:
+  four_bar_recalc: true
+  threshold_accelerating: 0.002
+  threshold_decelerating: -0.002
+universe:
+- name: 平安银行
+  symbol: '000001'
+- name: 万科A
+  symbol: '000002'
+- name: 格力电器
+  symbol: '000651'
+- name: 招商银行
+  symbol: '600036'
+- name: 贵州茅台
+  symbol: '600519'
+- name: 中国平安
+  symbol: '601318'
+- name: 五粮液
+  symbol: '000858'
+- name: 海康威视
+  symbol: '002415'
+- name: 宁德时代
+  symbol: '300750'
+- name: 中芯国际
+  symbol: '688981'

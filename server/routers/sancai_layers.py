@@ -3,6 +3,7 @@
 Tiandao (macro timing), Didao (stock selection), Rendao (execution).
 Each tier exposes: market, research, news, fundamental, announcements + unified timeline.
 """
+import asyncio
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11,7 +12,16 @@ import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
+from .sancai_gua import assess_index, assess_stock, assess_execution, BAGUA, QIAN_YAO, KUN_YAO
+
 router = APIRouter()
+
+# Profile-based factor weights
+PROFILE_WEIGHTS = {
+    "conservative": {"fundamental": 0.6, "technical": 0.2, "sentiment": 0.2},
+    "balanced": {"fundamental": 0.4, "technical": 0.4, "sentiment": 0.2},
+    "aggressive": {"fundamental": 0.15, "technical": 0.5, "sentiment": 0.35},
+}
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "raw"
@@ -79,40 +89,301 @@ def _err(msg, source="akshare"):
 # ═══════════════════════════════════════════
 
 TIANDAO_INDICES = {
-    "sh000001": "上证指数",
-    "sz399001": "深证成指",
-    "sh000300": "沪深300",
+    # ── A股五大指数 ──
+    "sh000001":  {"name": "上证指数",    "group": "A股指数", "akshare_fn": "stock_zh_index_daily"},
+    "sz399001":  {"name": "深证成指",    "group": "A股指数", "akshare_fn": "stock_zh_index_daily"},
+    "sz399006":  {"name": "创业板指",    "group": "A股指数", "akshare_fn": "stock_zh_index_daily"},
+    "sh000688":  {"name": "科创50",     "group": "A股指数", "akshare_fn": "stock_zh_index_daily"},
+    "bj899050":  {"name": "北证50",     "group": "A股指数", "akshare_fn": "stock_zh_index_daily"},
+    # ── 亚太其他重要指数 ──
+    "hkHSI":     {"name": "恒生指数",    "group": "亚太指数", "akshare_fn": "hk_index_daily"},
+    "jpN225":    {"name": "日经225",    "group": "亚太指数", "akshare_fn": "global_index"},
+    "krKOSPI":   {"name": "韩国KOSPI",  "group": "亚太指数", "akshare_fn": "global_index"},
+    # ── 汇率 ──
+    "fxUSDCNH":  {"name": "离岸人民币",  "group": "汇率",   "akshare_fn": "fx_index"},
+    # ── 期货品种 ──
+    "fGC":       {"name": "黄金(COMEX)", "group": "期货商品", "akshare_fn": "futures_foreign"},
+    "fCL":       {"name": "原油(WTI)",   "group": "期货商品", "akshare_fn": "futures_foreign"},
+    "fDX":       {"name": "美元指数",    "group": "期货商品", "akshare_fn": "futures_foreign"},
+    "fA50":      {"name": "富时A50",    "group": "期货商品", "akshare_fn": "futures_foreign"},
+    "fTA":       {"name": "PTA(化工)",   "group": "期货商品", "akshare_fn": "futures_domestic"},
+    "fJM":       {"name": "焦煤",       "group": "期货商品", "akshare_fn": "futures_domestic"},
+    "fA":        {"name": "豆一(农产品)","group": "期货商品", "akshare_fn": "futures_domestic"},
+    # ── 美股三大指数 ──
+    "usDJI":     {"name": "道琼斯",     "group": "美股指数", "akshare_fn": "global_index"},
+    "usSPX":     {"name": "标普500",    "group": "美股指数", "akshare_fn": "global_index"},
+    "usIXIC":    {"name": "纳斯达克",   "group": "美股指数", "akshare_fn": "global_index"},
 }
+
+# Index code to akshare symbol mapping for different fetch functions
+INDEX_AKSHARE_SYMBOLS = {
+    "sh000001": "sh000001", "sz399001": "sz399001", "sz399006": "sz399006",
+    "sh000688": "sh000688", "bj899050": "bj899050",
+    "hkHSI": "HSI", "jpN225": "N225", "krKOSPI": "KOSPI",
+    "fxUSDCNH": "USDCNH",
+    "fGC": "GC", "fCL": "CL", "fDX": "DX", "fA50": "XINA50",
+    "fTA": "TA", "fJM": "JM", "fA": "A",
+    "usDJI": "DJI", "usSPX": "SPX", "usIXIC": "IXIC",
+}
+
+# Whether an index uses E-Market (Eastmoney) or Sina source
+INDEX_SOURCE = {
+    "sh000001": "sina", "sz399001": "sina", "sz399006": "sina",
+    "sh000688": "sina", "bj899050": "em",
+    "hkHSI": "em", "jpN225": "em", "krKOSPI": "em",
+    "fxUSDCNH": "sina",
+    "fGC": "sina", "fCL": "sina", "fDX": "sina", "fA50": "sina",
+    "fTA": "sina", "fJM": "sina", "fA": "sina",
+    "usDJI": "em", "usSPX": "em", "usIXIC": "em",
+}
+
+
+def _fetch_index_data(ak, code: str, days: int):
+    """Fetch index data using the appropriate akshare function."""
+    ak_symbol = INDEX_AKSHARE_SYMBOLS.get(code, code)
+    fn_type = TIANDAO_INDICES[code]["akshare_fn"]
+
+    if fn_type == "stock_zh_index_daily":
+        return ak.stock_zh_index_daily(symbol=ak_symbol)
+    elif fn_type == "hk_index_daily":
+        # Eastmoney HK index
+        return ak.stock_hk_index_daily_em(symbol=ak_symbol)
+    elif fn_type == "global_index":
+        # Use Eastmoney global index
+        return ak.index_global_hist_em(symbol=ak_symbol)
+    elif fn_type == "futures_foreign":
+        # Sina foreign futures
+        return ak.futures_foreign_hist(symbol=ak_symbol)
+    elif fn_type == "futures_domestic":
+        # Sina domestic futures
+        return ak.futures_main_sina(symbol=ak_symbol)
+    elif fn_type == "fx_index":
+        # Currency index via Eastmoney
+        return ak.currency_hist_em(symbol=ak_symbol)
+    else:
+        return ak.stock_zh_index_daily(symbol=ak_symbol)
+
+
+def _normalize_index_df(df, code: str, days: int):
+    """Normalize different akshare DataFrame formats to standard OHLCV columns."""
+    if df is None or df.empty:
+        return None
+
+    cols = [c.lower() for c in df.columns]
+
+    # Try to find date, open, close, high, low, volume columns
+    date_col = None
+    open_col = None; close_col = None
+    high_col = None; low_col = None
+    vol_col = None
+
+    for c in df.columns:
+        cl = c.lower()
+        if cl in ("date", "日期", "time", "trade_date", "day"):
+            date_col = c
+        elif cl in ("open", "开盘", "开盘价"):
+            open_col = c
+        elif cl in ("close", "收盘", "收盘价", "最新价"):
+            close_col = c
+        elif cl in ("high", "最高", "最高价"):
+            high_col = c
+        elif cl in ("low", "最低", "最低价"):
+            low_col = c
+        elif cl in ("volume", "vol", "成交量", "成交额"):
+            vol_col = c
+
+    if date_col is None:
+        return None
+
+    records = []
+    for _, row in df.sort_values(date_col).tail(days).iterrows():
+        try:
+            records.append({
+                "date": str(row[date_col])[:10],
+                "open": float(row[open_col]) if open_col and pd.notna(row.get(open_col)) else 0,
+                "close": float(row[close_col]) if close_col and pd.notna(row.get(close_col)) else 0,
+                "high": float(row[high_col]) if high_col and pd.notna(row.get(high_col)) else 0,
+                "low": float(row[low_col]) if low_col and pd.notna(row.get(low_col)) else 0,
+                "volume": float(row[vol_col]) if vol_col and pd.notna(row.get(vol_col)) else 0,
+            })
+        except (ValueError, TypeError, KeyError):
+            continue
+
+    return records if records else None
+
+
+def _process_one_market_index(code, info, days):
+    """Process a single market index (blocking). Runs in thread pool for parallelism."""
+    name = info["name"]
+    group = info["group"]
+    df, err = _safe_akshare(lambda ak_inner, c=code, d=days: _fetch_index_data(ak_inner, c, d))
+    if err or df is None:
+        return code, {"name": name, "group": group, "data": [], "error": err or "no data"}
+
+    records = _normalize_index_df(df, code, days)
+    if records is None:
+        return code, {"name": name, "group": group, "data": [], "error": "failed to normalize"}
+
+    latest_close = records[-1]["close"] if records else 0
+    prev_close = records[-2]["close"] if len(records) > 1 else latest_close
+    change_pct = round((latest_close / prev_close - 1) * 100, 2) if prev_close else 0
+
+    return code, {
+        "name": name, "group": group,
+        "data": records, "latest": latest_close, "change_pct": change_pct,
+    }
+
+
+def _process_one_index_gua(code, info, days):
+    """Process a single index for gua/hexagram assessment (blocking)."""
+    name = info["name"]
+    group = info["group"]
+
+    df, err = _safe_akshare(lambda ak_inner, c=code, d=days: _fetch_index_data(ak_inner, c, d))
+    if err or df is None:
+        return {
+            "code": code, "name": name, "group": group,
+            "error": err or "no data",
+            "alignment": "数据不可用",
+            "hexagram": "—", "symbol": "—", "yao_ci": "—",
+            "advice": "—", "direction": "—",
+            "_count": "cross",
+        }
+
+    records = _normalize_index_df(df, code, days)
+    if records is None or len(records) < 60:
+        return {
+            "code": code, "name": name, "group": group,
+            "error": "insufficient data",
+            "alignment": "数据不足",
+            "hexagram": "—", "symbol": "—", "yao_ci": "—",
+            "advice": "—", "direction": "—",
+            "_count": "cross",
+        }
+
+    close_arr = np.array([r["close"] for r in records], dtype=float)
+    latest_price = close_arr[-1]
+    gua = assess_index(close_arr, name, latest_price)
+
+    alignment = gua.get("alignment", "震荡交织")
+    if alignment == "多头排列":
+        count_key = "multi"
+    elif alignment == "空头排列":
+        count_key = "bear"
+    else:
+        count_key = "cross"
+
+    return {
+        "code": code, "name": name, "group": group,
+        "alignment": alignment,
+        "price": gua.get("price"),
+        "change_pct": gua.get("change_pct", 0),
+        "hexagram": gua["hexagram"], "symbol": gua["symbol"],
+        "nature": gua.get("nature", "—"), "meaning": gua.get("meaning", "—"),
+        "color": gua.get("color", "#8b949e"),
+        "yao_name": gua.get("yao_name", "—"),
+        "yao_ci": gua["yao_ci"], "yao_meaning": gua.get("yao_meaning", "—"),
+        "advice": gua.get("advice", gua.get("suggestion", "—")),
+        "direction": gua["direction"],
+        "confidence": gua.get("confidence", 0),
+        "detail": gua.get("detail", ""),
+        "ma34": gua.get("ma34"), "ma144": gua.get("ma144"), "ma233": gua.get("ma233"),
+        "_count": count_key,
+    }
+
 
 
 @router.get("/tiandao/market")
 async def tiandao_market(days: int = Query(60, ge=1, le=365)):
-    """天道行情层: 三大指数日线数据."""
+    """天道行情层: 多市场指数日线数据 (A股5大指数+亚太+期货)."""
     cache_key = f"tiandao_market_{days}"
-    cached = _cached(cache_key, ttl=120)  # 2min for index data
+    cached = _cached(cache_key, ttl=120)
     if cached:
         return _ok(cached, "cache")
 
-    result = {}
-    for code, name in TIANDAO_INDICES.items():
-        df, err = _safe_akshare(lambda ak, c=code: ak.stock_zh_index_daily(symbol=c))
-        if err:
-            result[code] = {"name": name, "data": [], "error": err}
-            continue
-        df = df.sort_values("date").tail(days)
-        result[code] = {
-            "name": name,
-            "data": [{
-                "date": str(r["date"])[:10],
-                "open": float(r["open"]),
-                "close": float(r["close"]),
-                "high": float(r["high"]),
-                "low": float(r["low"]),
-                "volume": float(r.get("volume", 0)),
-            } for _, r in df.iterrows()],
-            "latest": float(df["close"].iloc[-1]),
-            "change_pct": round(float(df["close"].pct_change().iloc[-1] * 100), 2) if len(df) > 1 else 0,
-        }
+    tasks = [asyncio.to_thread(_process_one_market_index, code, info, days)
+             for code, info in TIANDAO_INDICES.items()]
+    results_list = await asyncio.gather(*tasks)
+    result = {code: data for code, data in results_list}
+
+    _cache_set(cache_key, result)
+    return _ok(result)
+
+
+@router.get("/tiandao/indices")
+async def tiandao_indices(days: int = Query(90, ge=60, le=365)):
+    """天道指数监控: 所有指数的MA排列(34/144/233) + 爻卦象.
+
+    Returns each index with:
+      - MA alignment (多头排列/空头排列/震荡交织)
+      - 卦象 (hexagram) + 爻辞 (yao statement)
+      - 操作建议 (advice)
+      - 运行状态 (running state from 五爻 imagery)
+    """
+    cache_key = f"tiandao_indices_{days}"
+    cached = _cached(cache_key, ttl=120)
+    if cached:
+        return _ok(cached, "cache")
+
+    # Fetch all indices in parallel via thread pool
+    tasks = [asyncio.to_thread(_process_one_index_gua, code, info, days)
+             for code, info in TIANDAO_INDICES.items()]
+    raw_results = await asyncio.gather(*tasks)
+
+    # Build final result list
+    indices_result = []
+    multi_count = 0
+    bear_count = 0
+    cross_count = 0
+
+    for item in raw_results:
+        count_key = item.pop("_count", "cross")
+        if count_key == "multi":
+            multi_count += 1
+        elif count_key == "bear":
+            bear_count += 1
+        else:
+            cross_count += 1
+        indices_result.append(item)
+
+    # Overall tiandao assessment based on index breadth
+    total = len(indices_result)
+    if multi_count > total * 0.5:
+        tiandao_overall = "吉"
+        overall_gua = BAGUA["qian"]
+        overall_yao = QIAN_YAO["九五"]
+        overall_meaning = "多数指数多头排列，天道大势向上"
+    elif bear_count > total * 0.5:
+        tiandao_overall = "凶"
+        overall_gua = BAGUA["kun"]
+        overall_yao = KUN_YAO["上六"]
+        overall_meaning = "多数指数空头排列，天道大势向下"
+    elif multi_count > bear_count:
+        tiandao_overall = "平"
+        overall_gua = BAGUA["zhen"]
+        overall_yao = QIAN_YAO["九四"]
+        overall_meaning = "多头略占优势，趋势有待确认"
+    else:
+        tiandao_overall = "平"
+        overall_gua = BAGUA["gen"]
+        overall_yao = KUN_YAO["六三"]
+        overall_meaning = "空头略占优势，宜观望等待"
+
+    result = {
+        "indices": indices_result,
+        "total": total,
+        "multi_count": multi_count,
+        "bear_count": bear_count,
+        "cross_count": cross_count,
+        "overall": {
+            "assessment": tiandao_overall,
+            "hexagram": overall_gua["name"],
+            "symbol": overall_gua["symbol"],
+            "yao_ci": overall_yao["yao_ci"],
+            "meaning": overall_meaning,
+            "advice": overall_yao["advice"],
+        },
+    }
 
     _cache_set(cache_key, result)
     return _ok(result)
@@ -229,8 +500,13 @@ async def tiandao_timeline(days: int = Query(60, ge=1, le=365)):
     events = []
     price_data = None
 
+    # Fire all sub-fetches in parallel
+    market_future = asyncio.ensure_future(tiandao_market(days=days))
+    fund_future = asyncio.ensure_future(tiandao_fundamental())
+    research_future = asyncio.ensure_future(tiandao_research(days=days))
+
     # 1. Market data (price line)
-    market_result = await tiandao_market(days=days)
+    market_result = await market_future
     if market_result["status"] == "ok":
         hs300 = market_result["data"].get("sh000300", {})
         price_data = {
@@ -252,7 +528,7 @@ async def tiandao_timeline(days: int = Query(60, ge=1, le=365)):
 
     # 2. Fundamental events (PE thresholds)
     try:
-        fund_resp = await tiandao_fundamental()
+        fund_resp = await fund_future
         if fund_resp["status"] == "ok":
             hs300_pe = fund_resp["data"].get("沪深300", {}) or {}
             pe_pct = hs300_pe.get("pe_pct")
@@ -268,7 +544,7 @@ async def tiandao_timeline(days: int = Query(60, ge=1, le=365)):
 
     # 3. Research report events
     try:
-        research_resp = await tiandao_research(days=days)
+        research_resp = await research_future
         if research_resp["status"] == "ok":
             for r in research_resp["data"].get("reports", [])[:10]:
                 events.append({
@@ -522,8 +798,13 @@ async def didao_announcements(symbol: str, days: int = Query(90, ge=1, le=365)):
 
 
 @router.get("/didao/score")
-async def didao_score(symbol: str):
-    """地道评分: 多因子综合评分."""
+async def didao_score(symbol: str, profile: str = Query("balanced", pattern="^(conservative|balanced|aggressive)$")):
+    """地道评分: 多因子综合评分 + 爻卦象.
+
+    profile 参数来自人道偏好，调整各因子权重:
+      - conservative: 加重基本面(60%), 降低技术面(20%)
+      - aggressive: 加重技术面(50%)+情绪(35%), 降低基本面(15%)
+    """
     fpath = DATA_DIR / "daily" / f"{symbol}.parquet"
     if not fpath.exists():
         return _err(f"No data for {symbol}")
@@ -533,77 +814,103 @@ async def didao_score(symbol: str):
     volume = df["volume"].values
     latest_close = close[-1]
 
-    score = 50
+    weights = PROFILE_WEIGHTS.get(profile, PROFILE_WEIGHTS["balanced"])
 
-    # MA factors (from stock data)
+    score = 50
+    tech_score = 0
+    fund_score = 0
+    sent_score = 0
+
+    # MA factors (技术面)
     if len(close) >= 55:
         ma21 = close[-21:].mean()
         ma34 = close[-34:].mean()
         ma55 = close[-55:].mean()
         if latest_close > ma21:
-            score += 15
+            tech_score += 15
         if latest_close > ma55:
-            score += 15
+            tech_score += 15
         if ma21 > ma34:
-            score += 10
+            tech_score += 10
 
-    # Volume factor
+    # Volume factor (技术面)
     if len(volume) >= 10:
         recent_vol = volume[-5:].mean()
         prior_vol = volume[-10:-5].mean()
         if prior_vol > 0 and recent_vol > prior_vol * 1.1:
-            score += 10
+            tech_score += 10
 
-    # Fundamental factors (from cache if available)
+    fundamentals = {}
+    # Fundamental factors
     try:
         fund_resp = await didao_fundamental(symbol)
         if fund_resp["status"] == "ok":
             fd = fund_resp["data"]
+            fundamentals = fd.get("fundamentals", {})
 
-            # ROE check
-            roe_data = fd.get("fundamentals", {}).get("加权平均净资产收益率", {}).get("latest")
+            roe_data = fundamentals.get("加权平均净资产收益率", {}).get("latest")
             if roe_data is not None and roe_data > 15:
-                score += 10
+                fund_score += 10
 
-            # PE check
-            pe_data = fd.get("fundamentals", {}).get("归属于母公司所有者的净利润", {}).get("latest")
+            pe_data = fundamentals.get("归属于母公司所有者的净利润", {}).get("latest")
             if pe_data is not None and pe_data > 0:
-                score += 5
+                fund_score += 5
 
-            # Rating upgrades (recent buy/hold ratings)
             ratings = fd.get("ratings", [])
             recent_buys = sum(1 for r in ratings if "买入" in r.get("rating", "") or "增持" in r.get("rating", ""))
             if recent_buys >= 3:
-                score += 10
+                fund_score += 10
             elif recent_buys >= 1:
-                score += 5
+                fund_score += 5
 
-            # Money flow
+            # Money flow (情绪面)
             flow = fd.get("fund_flow") or {}
             if flow.get("positive_days", 0) >= 7:
-                score += 10
+                sent_score += 10
     except Exception:
         pass
 
-    # PE percentile from market data
+    # Market PE percentile (基本面)
     try:
         fund_resp = await tiandao_fundamental()
         if fund_resp["status"] == "ok":
             pe_pct = fund_resp["data"].get("沪深300", {}).get("pe_pct")
             if pe_pct is not None and pe_pct < 30:
-                score += 5  # low overall PE = good time to buy
+                fund_score += 5
     except Exception:
         pass
 
-    score = min(score, 100)
+    # Weighted total
+    score = 50 + (tech_score * weights["technical"] / 0.4 +
+                  fund_score * weights["fundamental"] / 0.4 +
+                  sent_score * weights["sentiment"] / 0.2) * 0.4
+    score = min(max(round(score), 0), 100)
 
     assessment = "吉" if score >= 70 else ("凶" if score < 35 else "平")
 
+    # ── 爻卦 assessment for 地道 ──
+    gua = assess_stock(close, symbol, fundamentals)
+
     return _ok({
         "symbol": symbol,
+        "profile": profile,
         "score": score,
         "assessment": assessment,
         "latest_price": float(latest_close),
+        "factor_scores": {"technical": tech_score, "fundamental": fund_score, "sentiment": sent_score},
+        "weights": weights,
+        "gua": {
+            "hexagram": gua["hexagram"],
+            "symbol": gua["symbol"],
+            "nature": gua["nature"],
+            "meaning": gua["meaning"],
+            "color": gua["color"],
+            "yao_ci": gua["yao_ci"],
+            "yao_meaning": gua["yao_meaning"],
+            "advice": gua["advice"],
+            "alignment": gua.get("alignment", ""),
+            "detail": gua.get("detail", ""),
+        },
     })
 
 
@@ -618,9 +925,15 @@ async def didao_timeline(symbol: str, days: int = Query(60, ge=1, le=365)):
     events = []
     price_data = None
 
+    # Fire all sub-fetches in parallel
+    mkt_future = asyncio.ensure_future(didao_market(symbol=symbol, days=days))
+    res_future = asyncio.ensure_future(didao_research(symbol=symbol, days=days))
+    ann_future = asyncio.ensure_future(didao_announcements(symbol=symbol, days=days))
+    fund_future = asyncio.ensure_future(didao_fundamental(symbol))
+
     # Market data
     try:
-        mkt = await didao_market(symbol=symbol, days=days)
+        mkt = await mkt_future
         if mkt["status"] == "ok":
             d = mkt["data"]["data"]
             price_data = {
@@ -645,7 +958,7 @@ async def didao_timeline(symbol: str, days: int = Query(60, ge=1, le=365)):
 
     # Research
     try:
-        res = await didao_research(symbol=symbol, days=days)
+        res = await res_future
         if res["status"] == "ok":
             for r in res["data"].get("reports", [])[:8]:
                 events.append({
@@ -658,7 +971,7 @@ async def didao_timeline(symbol: str, days: int = Query(60, ge=1, le=365)):
 
     # Announcements
     try:
-        ann = await didao_announcements(symbol=symbol, days=days)
+        ann = await ann_future
         if ann["status"] == "ok":
             for a in ann["data"].get("announcements", [])[:8]:
                 title = str(list(a.values())[:2]) if a else ""
@@ -677,7 +990,7 @@ async def didao_timeline(symbol: str, days: int = Query(60, ge=1, le=365)):
 
     # Fundamental
     try:
-        fund = await didao_fundamental(symbol)
+        fund = await fund_future
         if fund["status"] == "ok":
             fd = fund["data"]
             roe = fd.get("fundamentals", {}).get("加权平均净资产收益率", {}).get("latest")
@@ -740,48 +1053,87 @@ async def rendao_flow(symbol: str):
 
 @router.get("/rendao/timeline")
 async def rendao_timeline():
-    """人道时间轴: 持仓股聚合事件（模拟持仓数据）."""
+    """人道时间轴: 持仓股聚合事件 + 爻卦象."""
     universe = _load_universe()
     held_symbols = [s["symbol"] for s in universe[:3]]  # Top 3 as mock positions
 
+    # Fire all per-symbol fetches in parallel
+    futures = {}
+    for sym in held_symbols:
+        futures[(sym, 'didao')] = asyncio.ensure_future(didao_timeline(symbol=sym, days=30))
+        futures[(sym, 'flow')] = asyncio.ensure_future(rendao_flow(symbol=sym))
+
     all_events = []
+    flow_signals = []
     for sym in held_symbols:
         try:
-            didao_resp = await didao_timeline(symbol=sym, days=30)
+            didao_resp = await futures[(sym, 'didao')]
             if didao_resp["status"] == "ok":
                 for e in didao_resp["data"].get("events", [])[:5]:
                     e["symbol"] = sym
                     all_events.append(e)
         except Exception:
             pass
+        try:
+            flow_resp = await futures[(sym, 'flow')]
+            if flow_resp["status"] == "ok":
+                flow_signals.append({"symbol": sym, "signal": flow_resp["data"].get("signal", "outflow")})
+        except Exception:
+            pass
 
     all_events.sort(key=lambda e: e["date"], reverse=True)
+
+    # ── 人道爻卦评估 ──
+    ren_gua = assess_execution(held_symbols, flow_signals if flow_signals else None)
 
     return _ok({
         "positions": held_symbols,
         "events": all_events[:50],
         "event_count": len(all_events),
         "note": "模拟持仓: 实时交易功能开发中",
+        "gua": {
+            "hexagram": ren_gua["hexagram"],
+            "symbol": ren_gua["symbol"],
+            "nature": ren_gua["nature"],
+            "meaning": ren_gua["meaning"],
+            "color": ren_gua["color"],
+            "yao_ci": ren_gua["yao_ci"],
+            "yao_meaning": ren_gua["yao_meaning"],
+            "advice": ren_gua["advice"],
+            "direction": ren_gua["direction"],
+            "detail": ren_gua["detail"],
+        },
     })
 
 
 @router.get("/alignment")
 async def sancai_alignment():
-    """三才合一信号: 检查天道/地道/人道评估是否对齐."""
+    """三才合一信号: 检查天道/地道/人道评估是否对齐，含爻卦象."""
     universe = _load_universe()
     top_symbol = universe[0]["symbol"] if universe else "000001"
 
-    # Quick assessment
-    tiandao_resp = await tiandao_timeline(days=30)
+    # Get tiandao indices overview
+    try:
+        indices_resp = await tiandao_indices(days=90)
+        t_assessment = indices_resp["data"]["overall"]["assessment"] if indices_resp["status"] == "ok" else "平"
+        t_gua = indices_resp["data"]["overall"] if indices_resp["status"] == "ok" else {}
+    except Exception:
+        t_assessment = "平"
+        t_gua = {}
+
+    # Get didao score with gua
     didao_resp = await didao_score(symbol=top_symbol)
-
-    t_assessment = "吉"
-    if tiandao_resp["status"] == "ok":
-        # Simple: if PE is low → bullish
-        pass  # Default to 吉 for now
-
     d_assessment = didao_resp["data"]["assessment"] if didao_resp["status"] == "ok" else "平"
-    r_assessment = "平"  # 人道 placeholder
+    d_gua = didao_resp["data"].get("gua", {}) if didao_resp["status"] == "ok" else {}
+
+    # Get rendao gua
+    try:
+        rendao_resp = await rendao_timeline()
+        r_assessment = rendao_resp["data"].get("gua", {}).get("direction", "平") if rendao_resp["status"] == "ok" else "平"
+        r_gua = rendao_resp["data"].get("gua", {}) if rendao_resp["status"] == "ok" else {}
+    except Exception:
+        r_assessment = "平"
+        r_gua = {}
 
     assessments = {"tiandao": t_assessment, "didao": d_assessment, "rendao": r_assessment}
     aligned = all(v == "吉" for v in assessments.values())
@@ -793,4 +1145,160 @@ async def sancai_alignment():
         "assessments": assessments,
         "aligned": aligned,
         "signal": signal,
+        "gua": {
+            "tiandao": t_gua,
+            "didao": d_gua,
+            "rendao": r_gua,
+        },
     })
+
+
+@router.get("/didao/strategy")
+async def didao_strategy(profile: str = Query("balanced", pattern="^(conservative|balanced|aggressive)$")):
+    """地道策略路由: 根据人道偏好返回推荐策略 + 参数."""
+    strategies = {
+        "conservative": {
+            "primary": "strict",
+            "primary_label": "严格: 三才BP1",
+            "secondary": "simple",
+            "secondary_label": "简单: KDJ超卖反弹",
+            "recommended_period": "daily",
+            "recommended_schools": ["dow_theory", "wyckoff"],
+            "description": "保守型以长周期稳健策略为主，注重安全边际和基本面支撑",
+            "filters": {
+                "min_score": 60,
+                "require_roe_positive": True,
+                "prefer_large_cap": True,
+            },
+        },
+        "balanced": {
+            "primary": "schools",
+            "primary_label": "流派: 多策略共识",
+            "secondary": "chan_theory",
+            "secondary_label": "缠论: 笔-线段-中枢-背驰",
+            "recommended_period": "60min",
+            "recommended_schools": ["chan_theory", "price_action", "morphology"],
+            "description": "均衡型兼顾攻守，多策略共识确认后入场",
+            "filters": {
+                "min_score": 50,
+                "require_roe_positive": False,
+                "prefer_large_cap": False,
+            },
+        },
+        "aggressive": {
+            "primary": "schools",
+            "primary_label": "流派: 多策略共识",
+            "secondary": "ict",
+            "secondary_label": "ICT: OB+FVG+流动性猎杀",
+            "recommended_period": "15min",
+            "recommended_schools": ["ict", "gann", "wave_theory"],
+            "description": "激进型以短线龙头策略为主，追求高赔率机会",
+            "filters": {
+                "min_score": 35,
+                "require_roe_positive": False,
+                "prefer_large_cap": False,
+            },
+        },
+    }
+    strat = strategies.get(profile, strategies["balanced"])
+    return _ok({"profile": profile, "strategy": strat})
+
+
+@router.get("/pipeline")
+async def sancai_pipeline():
+    """三才完整流程: 天道方向 → 地道筛选 → 人道计划."""
+    result = {"tiandao": None, "didao": None, "rendao": None, "decision_chain": []}
+
+    # 1. 天道方向
+    try:
+        t_resp = await tiandao_indices(days=90)
+        if t_resp["status"] == "ok":
+            overall = t_resp["data"]["overall"]
+            result["tiandao"] = {
+                "direction": overall["assessment"],
+                "hexagram": overall["hexagram"],
+                "yao_ci": overall["yao_ci"],
+                "meaning": overall["meaning"],
+                "advice": overall["advice"],
+            }
+            result["decision_chain"].append({
+                "layer": "天道",
+                "action": f"大势判断: {overall['assessment']} — {overall['yao_ci']}",
+                "detail": overall["meaning"],
+            })
+    except Exception as e:
+        result["tiandao"] = {"error": str(e)}
+
+    # 2. 人道偏好
+    from .rendao_quiz import get_user_profile
+    profile_data = get_user_profile()
+    profile = profile_data["profile"] if profile_data else "balanced"
+
+    # 3. 地道策略
+    try:
+        s_resp = await didao_strategy(profile=profile)
+        if s_resp["status"] == "ok":
+            result["didao"]["strategy"] = s_resp["data"]["strategy"]
+    except Exception as e:
+        result["didao"] = {"error": str(e)}
+
+    # 4. 地道标的评分
+    universe = _load_universe()
+    top_symbols = [s["symbol"] for s in universe[:5]]
+    stock_scores = []
+    for sym in top_symbols:
+        try:
+            sc_resp = await didao_score(symbol=sym, profile=profile)
+            if sc_resp["status"] == "ok":
+                stock_scores.append({
+                    "symbol": sym,
+                    "score": sc_resp["data"]["score"],
+                    "assessment": sc_resp["data"]["assessment"],
+                    "gua_yao": sc_resp["data"].get("gua", {}).get("yao_ci", ""),
+                    "price": sc_resp["data"]["latest_price"],
+                })
+        except Exception:
+            pass
+    stock_scores.sort(key=lambda s: s["score"], reverse=True)
+    result["didao"] = {
+        **result.get("didao", {}),
+        "stock_scores": stock_scores,
+        "top_picks": [s for s in stock_scores if s["score"] >= 60][:5],
+    }
+
+    # 5. 人道计划
+    from .rendao_plan import POSITION_PLANS
+    plan = POSITION_PLANS.get(profile, POSITION_PLANS["balanced"])
+    result["rendao"] = {
+        "profile": profile,
+        "plan": plan,
+        "advice": (f"建议仓位 {plan['total_position_pct']}%，"
+                   f"单票最大 {plan['max_single_pct']}%，"
+                   f"止损 {plan['stop_loss_pct']}%"),
+    }
+
+    result["decision_chain"].append({
+        "layer": "人道",
+        "action": f"偏好: {profile} — {profile_data.get('label', '未测评') if profile_data else '默认均衡型'}",
+        "detail": result["rendao"]["advice"],
+    })
+    result["decision_chain"].append({
+        "layer": "地道",
+        "action": f"策略: {result.get('didao', {}).get('strategy', {}).get('primary_label', 'N/A')}",
+        "detail": f"推荐标的: {', '.join(s['symbol'] for s in result['didao'].get('top_picks', []))}",
+    })
+
+    tiandao_dir = (result.get("tiandao") or {}).get("direction", "平")
+    top_count = len(result["didao"].get("top_picks", []))
+    if tiandao_dir == "吉" and top_count >= 2:
+        final_verdict = "三才共振·积极做多"
+    elif tiandao_dir == "凶":
+        final_verdict = "天道向下·防御为主"
+    elif top_count == 0:
+        final_verdict = "无合格标的·观望"
+    else:
+        final_verdict = "谨慎参与·轻仓试探"
+
+    result["final_verdict"] = final_verdict
+
+    return _ok(result)
