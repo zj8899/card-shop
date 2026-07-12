@@ -1,0 +1,41 @@
+/* ══════════════════════════════════════════════════════════════
+   Strategies module
+   ══════════════════════════════════════════════════════════════ */
+
+.strat-layout { display: flex; gap: var(--sp-4); height: calc(100vh - 130px); }
+.strat-list-pane { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; }
+.strat-list-pane .card { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.strat-editor-pane { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 980px) { .strat-layout { flex-direction: column; height: auto; } .strat-list-pane { width: 100%; } }
+
+.strat-list-item {
+  padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; font-size: var(--text-sm);
+  display: flex; align-items: center; gap: 6px;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.strat-list-item:hover { background: var(--bg-panel-alt); }
+.strat-list-item.active { background: var(--gradient-brand-soft); color: var(--brand-teal); font-weight: 600; }
+.strat-list-item .badge { margin-left: auto; }
+
+.strat-name-input {
+  flex: 1; min-width: 0; font-size: 13px; padding: 6px 10px;
+  background: var(--bg-input); color: var(--text-primary);
+  border: 1px solid var(--brand-teal); border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+}
+
+.strat-code-editor {
+  flex: 1; width: 100%; min-height: 240px;
+  background: var(--bg-sunken); color: var(--text-body, #c9d1d9);
+  border: 1px solid var(--border-default); border-radius: var(--r-md);
+  font-family: var(--font-mono); font-size: 12.5px; padding: 14px; resize: none;
+  line-height: 1.6;
+}
+
+.strat-ai-panel { border: 1px solid var(--border-default); border-radius: var(--r-md); display: flex; flex-direction: column; min-height: 200px; background: var(--bg-sunken); }
+.strat-ai-panel-head { padding: 8px 12px; border-bottom: 1px solid var(--border-hairline); font-size: var(--text-xs); color: var(--text-secondary); }
+.strat-ai-chat { flex: 1; padding: 10px 12px; overflow-y: auto; font-size: var(--text-xs); max-height: 220px; line-height: 1.6; }
+.strat-ai-msg { margin-bottom: 8px; }
+.strat-ai-msg.user { color: var(--brand-cyan); }
+.strat-ai-input-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border-hairline); }
+.strat-ai-input-row input { flex: 1; font-size: var(--text-xs); }

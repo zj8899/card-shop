@@ -59,6 +59,7 @@ export async function mount(container) {
   // 历史记录+尽调异步加载 (不阻塞页面)
   _loadHist().catch(function(e){ console.warn('loadHist err:', e); });
   _loadDD().catch(function(e){ console.warn('loadDD err:', e); });
+  _loadUserStrategies().catch(function(e){ console.warn('loadUserStrat err:', e); });
 
   // 兜底: 3秒后再试一次
   setTimeout(function() {
@@ -445,6 +446,27 @@ function _renderTable(el, r) {
 }
 
 // ── scan history ──
+async function _loadUserStrategies() {
+  // 把自定义策略追加到策略扫描下拉（内置 SL 保留在前）。mode=user_xxx，scanner 已支持。
+  var sel = document.getElementById('ds-mode');
+  if (!sel) return;
+  try {
+    var r = await api.get('/api/strategies/list', {timeoutMs:15000});
+    var data = (r && r.data) || r || {};
+    var users = data.user || [];
+    // 先清掉上一轮追加的 user option（避免 onShow 重复），标记用 data-user
+    Array.prototype.slice.call(sel.querySelectorAll('option[data-user="1"]')).forEach(function(o){ o.remove(); });
+    users.forEach(function(s){
+      var id = s.id || s.name;
+      var opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = '⭐ ' + (s.name || id);
+      opt.setAttribute('data-user', '1');
+      sel.appendChild(opt);
+    });
+  } catch(e) { /* non-fatal */ }
+}
+
 async function _loadHist() {
   var sel = document.getElementById('ds-hist');
   try {

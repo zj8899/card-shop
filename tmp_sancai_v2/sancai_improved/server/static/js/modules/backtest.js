@@ -34,6 +34,7 @@ const store = createStore({
   schoolParams: null,
   tuning: {},
   pollHandle: null,
+  userModes: [],
 });
 
 let root;
@@ -43,6 +44,17 @@ export async function mount(container) {
   render(store.get());
   bindRender(store, render);
   loadSchoolParams();
+  loadUserStrategies();
+}
+
+async function loadUserStrategies() {
+  // 拉取自定义策略，追加到策略模式下拉（id 形如 user_xxx，engine 已支持该 mode）
+  try {
+    const res = await api.get('/api/strategies/list');
+    const data = (res && res.data) || res || {};
+    const userModes = (data.user || []).map((s) => ({ v: s.id || s.name, label: `⭐ ${s.name || s.id}` }));
+    store.set({ userModes });
+  } catch (e) { /* non-fatal */ }
 }
 
 async function loadSchoolParams() {
@@ -158,7 +170,7 @@ function renderConfigCard(state) {
     ]),
     h('div', { class: 'field', style: 'margin-bottom:8px;' }, [
       h('label', {}, '策略模式'),
-      h('div', { class: 'chip-select', style: 'margin-top:6px;' }, MODES.map((m) => h('button', {
+      h('div', { class: 'chip-select', style: 'margin-top:6px;' }, [...MODES, ...(state.userModes || [])].map((m) => h('button', {
         class: `chip ${state.mode === m.v ? 'active' : ''}`, onClick: () => setMode(m.v),
       }, m.label))),
     ]),
