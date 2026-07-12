@@ -259,7 +259,9 @@ def _validate_strategy_code(code: str, name: str) -> dict:
         if not strat_cls_names:
             warnings.append("No class explicitly inheriting from IStrategy found")
         else:
-            required_methods = {"populate_indicators", "populate_entry_signals", "populate_exit_signals"}
+            # populate_indicators 在 IStrategy 里有默认实现(返回 df 不变)，运行时可省略；
+            # 只有 entry/exit 是 @abstractmethod 必须实现。校验与实际运行要求保持一致。
+            required_methods = {"populate_entry_signals", "populate_exit_signals"}
             for cls in class_defs:
                 if cls.name in strat_cls_names:
                     method_names = {n.name for n in ast.walk(cls) if isinstance(n, ast.FunctionDef)}

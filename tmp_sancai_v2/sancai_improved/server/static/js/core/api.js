@@ -29,7 +29,14 @@ async function request(path, { method = 'GET', body, timeoutMs = DEFAULT_TIMEOUT
     const isJson = resp.headers.get('content-type')?.includes('application/json');
     const payload = isJson ? await resp.json().catch(() => null) : await resp.text();
     if (!resp.ok) {
-      throw new ApiError(payload?.detail || payload?.message || `请求失败 (${resp.status})`, resp.status, payload);
+      let msg = payload?.detail || payload?.message || `请求失败 (${resp.status})`;
+      // detail 可能是对象（如策略校验返回 {errors:[...], warnings:[...]}），转成可读文本
+      if (msg && typeof msg === 'object') {
+        if (Array.isArray(msg.errors) && msg.errors.length) msg = msg.errors.join('；');
+        else if (Array.isArray(msg)) msg = msg.map((x) => (typeof x === 'object' ? (x.msg || JSON.stringify(x)) : x)).join('；');
+        else msg = msg.msg || JSON.stringify(msg);
+      }
+      throw new ApiError(msg, resp.status, payload);
     }
     return payload;
   } catch (e) {
