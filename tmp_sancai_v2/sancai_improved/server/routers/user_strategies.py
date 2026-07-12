@@ -99,6 +99,33 @@ async def save_strategy(req: StrategySaveRequest):
     }
 
 
+def _resolve_user_strategy_file(name: str) -> Path | None:
+    """Resolve a user strategy's real source file from its registry key.
+
+    The registry key comes from the strategy class's `name` attribute (e.g.
+    'user_one_yang_chuan'), which can differ from the on-disk filename (e.g.
+    一阳穿.py, a Chinese name). Assuming key-minus-prefix == filename breaks for
+    those, so resolve via the registered class's module __file__ instead.
+    """
+    import sys
+    try:
+        from backtest.strategies import registry
+        key = name if name.startswith("user_") else f"user_{name}"
+        cls = getattr(registry, "_registry", {}).get(key)
+        if cls is None:
+            return None
+        mod = sys.modules.get(getattr(cls, "__module__", ""))
+        fpath = getattr(mod, "__file__", None) if mod else None
+        if fpath:
+            p = Path(fpath).resolve()
+            # Only accept files inside user_generated (path traversal guard)
+            if str(p).startswith(str(USER_DIR.resolve())):
+                return p
+    except Exception:
+        return None
+    return None
+
+
 @router.delete("/api/strategies/user/{name}")
 async def delete_strategy(name: str):
     """Delete a user strategy (only user-created, not builtin)."""
@@ -109,36 +136,47 @@ async def delete_strategy(name: str):
     if ".." in user_name or "/" in user_name or "\\" in user_name:
         raise HTTPException(status_code=400, detail="Invalid strategy name")
 
-    filepath = USER_DIR / f"{user_name}.py"
-    if not filepath.exists():
+    # Resolve real source file via registry (handles filename != registry key,
+    # e.g. Chinese filenames). Fall back to the same-name file on disk.
+    filepath = _resolve_user_strategy_file(name)
+    if filepath is None:
+        candidate = USER_DIR / f"{user_name}.py"
+        if candidate.exists():
+            filepath = candidate.resolve()
+
+    if filepath is None or not filepath.exists():
         raise HTTPException(status_code=404, detail=f"Strategy '{name}' not found")
 
     # Verify it's actually in user_generated directory (path traversal guard)
     if not str(filepath.resolve()).startswith(str(USER_DIR.resolve())):
         raise HTTPException(status_code=403, detail="Cannot delete strategies outside user_generated directory")
 
+    stem = filepath.stem
     try:
         filepath.unlink()
-        logger.info(f"Deleted user strategy: {user_name}")
+        logger.info(f"Deleted user strategy: {stem} (key={name})")
 
-        # Remove compiled cache files
+        # Remove compiled cache files (keyed by the real file stem)
         for cache_dir in (USER_DIR / "__pycache__",):
             if cache_dir.exists():
-                for cached in cache_dir.glob(f"{user_name}.*"):
+                for cached in cache_dir.glob(f"{stem}.*"):
                     cached.unlink(missing_ok=True)
 
-        # Remove from registry
+        # Remove from registry + refresh so the list updates immediately
         try:
             from backtest.strategies import registry
-            if hasattr(registry, '_registry'):
-                registry_key = f"user_{user_name}"
+            if hasattr(registry, "_registry"):
+                registry_key = name if name.startswith("user_") else f"user_{name}"
                 registry._registry.pop(registry_key, None)
+            # Re-scan so a stale in-memory module for this file is dropped
+            if hasattr(registry, "_discover_user_strategies"):
+                registry._discover_user_strategies()
         except Exception:
             pass
 
-        return {"status": "deleted", "name": user_name}
+        return {"status": "deleted", "name": name}
     except Exception as e:
-        logger.error(f"Failed to delete strategy {user_name}: {e}")
+        logger.error(f"Failed to delete strategy {name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete: {e}")
 
 
@@ -163,12 +201,16 @@ async def get_source(name: str):
     import backtest.strategies as pkg
     pkg_dir = Path(pkg.__path__[0])
 
-    # ── 1) User strategy file (strip user_ prefix if present) ──
-    user_name = name.replace("user_", "", 1) if name.startswith("user_") else name
-    filepath = (USER_DIR / f"{user_name}.py").resolve()
-    if str(filepath).startswith(str(USER_DIR.resolve())) and filepath.exists():
+    # ── 1) User strategy file (resolve via registry, handles filename != key) ──
+    resolved = _resolve_user_strategy_file(name)
+    if resolved is None:
+        user_name = name.replace("user_", "", 1) if name.startswith("user_") else name
+        candidate = (USER_DIR / f"{user_name}.py").resolve()
+        if str(candidate).startswith(str(USER_DIR.resolve())) and candidate.exists():
+            resolved = candidate
+    if resolved is not None and resolved.exists():
         return {
-            "name": name, "code": filepath.read_text(encoding="utf-8"),
+            "name": name, "code": resolved.read_text(encoding="utf-8"),
             "editable": True, "type": "user",
         }
 
