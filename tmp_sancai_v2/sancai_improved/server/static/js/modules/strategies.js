@@ -83,13 +83,14 @@ async function saveStrategy() {
     toast(state.creating ? '请先输入策略名' : '未选中可保存的策略，请用「+ 新建」', { type: 'error' });
     return;
   }
-  if (!state.code || state.code.trim().length < 10) {
+  const code = _liveCode();  // live DOM 直读，含用户刚敲还没失焦的内容
+  if (!code || code.trim().length < 10) {
     toast('策略代码太短（至少10个字符），请先用 AI 助手生成或手写', { type: 'error' });
     return;
   }
-  store.set({ saving: true });
+  store.set({ saving: true, code });
   try {
-    const res = await api.post('/api/strategies/user', { name, code: state.code });
+    const res = await api.post('/api/strategies/user', { name, code });
     const savedName = res?.name || res?.data?.name || name;
     toast('已保存', { type: 'success' });
     await loadList();
@@ -110,8 +111,15 @@ async function saveStrategy() {
   }
 }
 
+// 读编辑器当前代码：优先 live DOM(textarea 用 onChange 持久化，打字中 store 可能未更新)，
+// 回退 store.code。避免 textarea 绑 onInput→全量re-render 导致的焦点丢失。
+function _liveCode() {
+  const ta = document.querySelector('.strat-code-editor');
+  return ta ? ta.value : (store.get().code || '');
+}
+
 function copyCode() {
-  navigator.clipboard?.writeText(store.get().code || '');
+  navigator.clipboard?.writeText(_liveCode());
   toast('已复制到剪贴板', { type: 'success' });
 }
 
@@ -136,7 +144,7 @@ async function askAI(message) {
   if (_aiInput) _aiInput.value = '';
   try {
     const res = await api.post('/api/ai/chat', {
-      message, context: { strategy: store.get().selected, code: store.get().code },
+      message, context: { strategy: store.get().selected, code: _liveCode() },
     }, { timeoutMs: 60000 });
     const reply = res?.data?.reply || res?.reply || res?.message || '(无回复)';
     const suggestedCode = res?.data?.code || res?.code;
@@ -246,7 +254,9 @@ function renderEditorPane(state) {
           ? '在下方 AI 助手描述需求生成策略代码（例："写一个MA20上穿买入、跌破5%止损的策略"），或直接手写。'
           : '点击左侧策略名称查看代码',
         value: state.code,
-        onInput: (e) => store.set({ code: e.target.value }),
+        // 用 onChange(失焦时)持久化，而非 onInput(每次按键)，避免全量 re-render 丢焦点。
+        // 保存/发送/复制时另从 live DOM 直读，不依赖失焦时机。
+        onChange: (e) => store.set({ code: e.target.value }),
       }),
       renderAiPanel(state),
     ]),
