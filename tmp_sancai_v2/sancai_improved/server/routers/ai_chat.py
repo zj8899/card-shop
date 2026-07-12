@@ -451,9 +451,16 @@ STRATEGY_CHAT_SYSTEM = """你是三才量化系统的策略编写助手，精通
     ctx.bars_held      持仓K线数(int)
     ctx.kdj_k/kdj_d/kdj_j   KDJ值
     ctx.mas            {周期:均线值} 如 ctx.mas.get(20)、ctx.mas.get(34)
+    ctx.factor_values  {列名:值} populate_indicators 里加的列的当前值，如 ctx.factor_values.get("ma5")
     ctx.volume_ratio   量比
     ctx.close_arr      截至当前的收盘价数组(list)，可算自定义指标
     ctx.trend          "up"/"down"/"neutral"
+
+⚡ 性能铁律（否则回测会超时卡死）：populate_entry_signals/populate_exit_signals 每根K线都会被调用一次。
+    ✅ 指标计算放进 populate_indicators（df 上向量化算一次），信号方法里用 ctx.mas / ctx.factor_values 读当前值。
+    ❌ 绝对不要在信号方法里写 `for i in range(len(ctx.close_arr))` 遍历整个历史重算指标——
+       那样是 O(N²)，几百根K线就会让回测卡几十秒到几分钟。
+    需要某指标当前值就在 populate_indicators 里 `df["x"]=...`，信号方法用 `ctx.factor_values.get("x")` 取。
 
 【完整最小示例】
 ```python
