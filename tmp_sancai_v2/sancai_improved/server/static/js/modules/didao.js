@@ -74,6 +74,7 @@ export async function mount(container) {
 export function onShow() {
   _loadHist().catch(function(){});
   _loadDD().catch(function(){});
+  _loadUserStrategies().catch(function(){});  // 切回时刷新自定义策略，新建后无需刷新整页
 }
 
 // ── stock query ──

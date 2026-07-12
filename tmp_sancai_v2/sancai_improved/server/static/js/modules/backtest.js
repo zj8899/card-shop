@@ -57,6 +57,12 @@ async function loadUserStrategies() {
   } catch (e) { /* non-fatal */ }
 }
 
+// 切回本板块时刷新自定义策略（router 缓存 mount，只调 onShow），
+// 这样在策略管理新建策略后无需刷新整页即可在此看到。
+export function onShow() {
+  loadUserStrategies();
+}
+
 async function loadSchoolParams() {
   try {
     const res = await api.get('/api/backtest/school-params');
