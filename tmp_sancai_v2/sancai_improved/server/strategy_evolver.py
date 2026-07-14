@@ -158,9 +158,12 @@ class StrategyEvolver:
 
     async def distill_school(
         self, school: str, symbols: list[str], period: str = "daily",
-        start_date: str = None, end_date: str = None, generations: int = 3
+        start_date: str = None, end_date: str = None, generations: int = 3,
+        ml_context: dict = None
     ) -> list[GenerationResult]:
         """单流派蒸馏：逐代回测→AI改写→再回测，多代迭代。
+
+        ml_context: ML注入上下文 {"top_factors": [...], "advice": "..."} 可选
 
         Returns list of GenerationResult, one per generation.
         """
@@ -197,7 +200,7 @@ class StrategyEvolver:
             # AI生成改进版
             new_name = f"{school}_gen{gen}"
             success = await self._ai_distill(
-                current_strategy, school, new_name, prev_gen, symbols
+                current_strategy, school, new_name, prev_gen, symbols, ml_context
             )
 
             if not success:
@@ -366,9 +369,10 @@ class StrategyEvolver:
 
     async def _ai_distill(
         self, current_mode: str, school: str, new_name: str,
-        prev_gen: GenerationResult, symbols: list[str]
+        prev_gen: GenerationResult, symbols: list[str],
+        ml_context: dict = None
     ) -> bool:
-        """AI蒸馏一步：读取上一代结果+代码→增强分析→生成改进版→保存."""
+        """AI蒸馏一步：读取上一代结果+代码→增强分析(可选ML注入)→生成改进版→保存."""
         from server.routers.ai_chat import _get_api_key, _call_llm, _validate_strategy_code
         from server.enhanced_prompt import DistillPromptBuilder
 
@@ -395,7 +399,7 @@ class StrategyEvolver:
         # ── 使用增强 Prompt 构建器 ──
         builder = DistillPromptBuilder()
         system_prompt, user_prompt = builder.build(
-            school, prev_gen, original_code, symbols
+            school, prev_gen, original_code, symbols, ml_context
         )
 
         try:

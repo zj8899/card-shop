@@ -39,7 +39,7 @@ from fastapi.responses import FileResponse, Response
 
 from .routers import (data, backtest,
                           didao_screener, holdings, admin,
-                        ai_chat, user_strategies, research, review, strategy_lab, news)
+                        ai_chat, user_strategies, research, review, strategy_lab, news, evolution)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -165,6 +165,7 @@ app.include_router(research.router, prefix="/api/research", tags=["Research"])
 app.include_router(review.router, prefix="/api", tags=["Review"])
 app.include_router(strategy_lab.router, prefix="/api", tags=["Strategy Lab"])
 app.include_router(news.router, prefix="/api", tags=["News Events"])
+app.include_router(evolution.router, prefix="/api", tags=["Evolution"])
 
 # Static files (dashboard HTML/JS/CSS)
 static_dir = Path(__file__).parent / "static"
