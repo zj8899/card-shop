@@ -11,6 +11,15 @@ from datetime import datetime, time as dt_time
 from pathlib import Path
 from typing import Optional
 
+# 加载 .env 文件（在最早期执行，确保后续所有模块看到的 os.environ 都是完整的）
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_path = Path(__file__).parent.parent / ".env"
+    if _env_path.exists():
+        _load_dotenv(_env_path, override=False)  # override=False: env var 优先于 .env
+except ImportError:
+    pass  # python-dotenv 未安装 — 跳过，由用户自行设环境变量
+
 # 绕过 Windows 系统代理，直连国内数据源
 os.environ["NO_PROXY"] = "*"
 os.environ["no_proxy"] = "*"

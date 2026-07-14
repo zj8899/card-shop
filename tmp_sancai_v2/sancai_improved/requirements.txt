@@ -1,0 +1,44 @@
+# Core
+fastapi>=0.136.0
+uvicorn[standard]>=0.34.0
+python-multipart>=0.0.20
+pydantic>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Data
+akshare>=1.15.0
+pyarrow>=14.0.0
+duckdb>=1.2.0
+openpyxl>=3.0.0
+
+# Config
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Archive handling
+rarfile>=4.0
+py7zr>=0.21
+
+# Async
+aiofiles>=23.0.0
+
+# Frontend serving
+aiohttp>=3.9.0
+
+# WebSocket
+websockets>=12.0
+
+# Backtest Enhancement
+# vectorbt 提供组合级回测、超参寻优、可视化增强
+# 安装到 D:\venv 虚拟环境以避免 Windows 长路径问题
+vectorbt>=1.0.0
+
+# ML / Research
+lightgbm>=4.0.0
+scikit-learn>=1.3.0
+scipy>=1.10.0
+
+# AI Tools
+tavily-python>=0.7.0
+httpx>=0.28.0
