@@ -78,7 +78,7 @@ class SancaiBacktestEngine:
             initial_capital=self.config.get("initial_capital", 1_000_000),
             config=BrokerConfig(
                 commission_rate=self.config.get("commission_rate", 0.00025),
-                stamp_duty_rate=self.config.get("stamp_duty_rate", 0.001),
+                stamp_duty_rate=self.config.get("stamp_duty", self.config.get("stamp_duty_rate", 0.0005)),
                 slippage=self.config.get("slippage", 0.001),
             )
         )

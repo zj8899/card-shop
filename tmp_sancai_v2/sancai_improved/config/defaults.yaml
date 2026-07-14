@@ -7,7 +7,7 @@ broker:
   min_lot: 100
   price_limit: 0.1
   slippage: 0.001
-  stamp_duty: 0.001
+  stamp_duty: 0.0005  # 0.05% (sell only, halved since Aug 2023)
   t_plus_one: true
 buy:
   days_to_confirm: 3
