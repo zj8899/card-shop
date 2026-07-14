@@ -1,10 +1,11 @@
-"""Evolution API — ML 训练 / 因子 IC / 策略蒸馏 / 自主循环控制。
+"""Evolution API — ML 框架 / 因子 IC / 策略蒸馏 / 自主循环控制 + 系统资源监控。
 
 端点的实际逻辑都在现有模块里(StrategyEvolver/AutoLoopRunner/BatchRunner 等);
 本路由只负责暴露 HTTP 端点 + 串联参数。
 """
 import asyncio
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -300,3 +301,47 @@ async def auto_loop_report():
         raise HTTPException(status_code=404, detail="无报告。请先运行 auto-loop")
     return ok({"report": candidates[0].read_text(encoding="utf-8"),
                "path": str(candidates[0])})
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 系统资源监控
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/evolution/system-stats")
+async def system_stats():
+    """实时 CPU / 内存 / GPU 使用率 + 进程信息。前端 3 秒轮询。"""
+    import psutil
+    gpu = {}
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        h = pynvml.nvmlDeviceGetHandleByIndex(0)
+        mem = pynvml.nvmlDeviceGetMemoryInfo(h)
+        gpu = {
+            "name": str(pynvml.nvmlDeviceGetName(h)),
+            "mem_total_mb": round(mem.total / (1024 * 1024), 1),
+            "mem_used_mb": round(mem.used / (1024 * 1024), 1),
+            "mem_pct": round(mem.used / max(mem.total, 1) * 100, 1),
+            "gpu_util_pct": pynvml.nvmlDeviceGetUtilizationRates(h).gpu,
+            "temp_c": pynvml.nvmlDeviceGetTemperature(h, pynvml.NVML_TEMPERATURE_GPU),
+        }
+        pynvml.nvmlShutdown()
+    except Exception:
+        pass  # 无 GPU 或无 pynvml → gpu 为空
+
+    vm = psutil.virtual_memory()
+    proc = psutil.Process(os.getpid())
+    return ok({
+        "cpu_pct": round(psutil.cpu_percent(interval=0.3), 1),
+        "mem_total_gb": round(vm.total / (1024 ** 3), 1),
+        "mem_used_gb": round(vm.used / (1024 ** 3), 1),
+        "mem_pct": round(vm.percent, 1),
+        "gpu": gpu,
+        "process": {
+            "pid": os.getpid(),
+            "threads": proc.num_threads(),
+            "cpu_pct": round(proc.cpu_percent(interval=None), 1),
+            "mem_mb": round(proc.memory_info().rss / (1024 * 1024), 1),
+        },
+        "ts": datetime.now().isoformat(),
+    })

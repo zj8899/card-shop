@@ -1,0 +1,44 @@
+.ev-sysbar {
+  display: flex; gap: 18px; flex-wrap: wrap; padding: 10px 14px;
+  background: var(--bg-sunken); border: 1px solid var(--border-hairline);
+  border-radius: var(--r-md); margin-bottom: 14px;
+  font-size: var(--text-xs); align-items: center;
+}
+.ev-sys-chip { display: flex; align-items: center; gap: 5px; }
+.ev-sys-chip .bar { height: 6px; width: 58px; border-radius: 3px; background: var(--border-hairline); overflow: hidden; }
+.ev-sys-chip .bar-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+
+.ev-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  margin-bottom: 14px;
+}
+@media (max-width: 1200px) { .ev-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 768px) { .ev-grid { grid-template-columns: 1fr; } }
+
+.ev-card { border: 1px solid var(--border-default); border-radius: var(--r-md); padding: 14px; background: var(--bg-sunken); }
+.ev-card-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text-primary); }
+.ev-field { margin-bottom: 8px; }
+.ev-field label { display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
+.ev-field input, .ev-field select {
+  width: 100%; font-size: 12px; padding: 6px 10px;
+  background: var(--bg-input); color: var(--text-primary);
+  border: 1px solid var(--border-light); border-radius: 6px;
+}
+.ev-field-row { display: flex; gap: 8px; }
+.ev-field-row .ev-field { flex: 1; }
+.ev-check { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 8px; }
+
+.ev-log {
+  border: 1px solid var(--border-hairline); border-radius: var(--r-md);
+  background: #0a0e14; color: #8ee780; font-family: var(--font-mono);
+  font-size: 11px; line-height: 1.7; padding: 12px; max-height: 200px;
+  overflow-y: auto;
+}
+.ev-log-line { white-space: pre-wrap; word-break: break-all; }
+.ev-log-line.warn { color: #ffb347; }
+.ev-log-line.err { color: #ff6b81; }
+.ev-log-line.info { color: #7ecfff; }
+
+.ev-result { font-size: 12px; margin-top: 8px; line-height: 1.6; }
+.ev-result .highlight { color: var(--brand-teal); font-weight: 600; }
+.ev-progress { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }

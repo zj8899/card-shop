@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="三才量化 — 多学派策略扫描 · AI增强分析 · 专业量化终端">
+<title>三才量化 · Sancai Quant Terminal</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="/static/css/tokens.css">
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/shell.css">
+<link rel="stylesheet" href="/static/css/buttons.css">
+<link rel="stylesheet" href="/static/css/badges.css">
+<link rel="stylesheet" href="/static/css/components.css">
+<link rel="stylesheet" href="/static/css/toast.css">
+<link rel="stylesheet" href="/static/css/modules.css">
+<link rel="stylesheet" href="/static/css/chart.css">
+<link rel="stylesheet" href="/static/css/backtest.css">
+<link rel="stylesheet" href="/static/css/didao.css">
+<link rel="stylesheet" href="/static/css/news.css">
+<link rel="stylesheet" href="/static/css/strategies.css">
+<link rel="stylesheet" href="/static/css/stocks.css">
+<link rel="stylesheet" href="/static/css/admin.css">
+<link rel="stylesheet" href="/static/css/lab.css">
+<link rel="stylesheet" href="/static/css/research.css">
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">跳过导航，直达内容</a>
+
+<div class="app-shell">
+
+  <!-- ═══ Icon Rail ═══ -->
+  <aside class="rail" role="navigation" aria-label="主导航">
+    <div class="rail-logo" aria-hidden="true">三</div>
+
+    <nav class="rail-nav">
+      <button class="rail-item" data-route="dashboard" aria-label="仪表盘">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="rail-label">仪表盘</span>
+        <span class="rail-tip">仪表盘总览</span>
+      </button>
+      <button class="rail-item" data-route="chart" aria-label="K线图">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-7M22 19v-4"/></svg>
+        <span class="rail-label">K线</span>
+        <span class="rail-tip">K线图表 · 盘口 · 资金流</span>
+      </button>
+      <button class="rail-item" data-route="backtest" aria-label="回测">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-5 3 3 5-7"/></svg>
+        <span class="rail-label">回测</span>
+        <span class="rail-tip">策略回测系统</span>
+      </button>
+      <button class="rail-item" data-route="didao" aria-label="策略选股">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <span class="rail-label">选股</span>
+        <span class="rail-tip">多学派策略选股</span>
+      </button>
+      <button class="rail-item" data-route="news" aria-label="消息追踪">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+        <span class="rail-label">消息</span>
+        <span class="rail-tip">消息追踪 · 信源分级</span>
+      </button>
+      <button class="rail-item" data-route="strategies" aria-label="策略管理">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        <span class="rail-label">策略</span>
+        <span class="rail-tip">策略代码管理</span>
+      </button>
+      <button class="rail-item" data-route="lab" aria-label="策略实验室">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M12 12v5"/><path d="M9 14h6"/></svg>
+        <span class="rail-label">实验室</span>
+        <span class="rail-tip">因子组合 · 策略评估</span>
+      </button>
+      <button class="rail-item" data-route="research" aria-label="AI研究">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span class="rail-label">AI</span>
+        <span class="rail-tip">市场状态 · 情绪 · 资金分析</span>
+      </button>
+      <button class="rail-item" data-route="evolution" aria-label="进化实验室">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span class="rail-label">进化</span>
+        <span class="rail-tip">ML训练 · 策略蒸馏 · 自主循环</span>
+      </button>
+      <button class="rail-item" data-route="stocks" aria-label="数据管理">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+        <span class="rail-label">数据</span>
+        <span class="rail-tip">数据管理 · 导入下载</span>
+      </button>
+      <button class="rail-item" data-route="admin" aria-label="系统配置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="rail-label">配置</span>
+        <span class="rail-tip">系统配置</span>
+      </button>
+    </nav>
+
+    <div class="rail-foot">
+      <button class="rail-item" id="rail-help" aria-label="帮助">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 2-3 4"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span class="rail-tip">使用文档</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ═══ Topbar ═══ -->
+  <header class="topbar" role="banner">
+    <div class="topbar-title">
+      <span id="topbar-title-text">仪表盘</span>
+      <span class="eyebrow">Sancai Quant</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-status-group" role="status" aria-live="polite">
+      <span class="badge badge-neutral" id="rust-status">Rust 检测中…</span>
+      <span class="badge badge-live" id="server-status"><span class="badge-dot"></span>运行中</span>
+      <span class="badge badge-ai" id="ai-status">✦ Claude AI</span>
+    </div>
+  </header>
+
+  <!-- ═══ Main ═══ -->
+  <main id="main-content" class="main">
+    <div class="view" id="view-dashboard"></div>
+    <div class="view" id="view-chart"></div>
+    <div class="view" id="view-backtest"></div>
+    <div class="view" id="view-didao"></div>
+    <div class="view" id="view-news"></div>
+    <div class="view" id="view-strategies"></div>
+    <div class="view" id="view-stocks"></div>
+    <div class="view" id="view-admin"></div>
+    <div class="view" id="view-lab"></div>
+    <div class="view" id="view-research"></div>
+    <div class="view" id="view-evolution"></div>
+  </main>
+
+</div>
+
+<div id="global-announcer" class="sr-only" role="status" aria-live="assertive"></div>
+
+<script>
+window._appLoaded = false;
+setTimeout(function() {
+  if (!window._appLoaded) {
+    var el = document.getElementById('rust-status');
+    if (el && el.textContent.indexOf('检测中') >= 0) {
+      el.textContent = 'JS 加载失败';
+      el.classList.add('badge-danger');
+    }
+  }
+}, 6000);
+</script>
+<script type="module" src="/static/js/main.js?v=20260711"></script>
+</body>
+</html>

@@ -11,6 +11,7 @@ const routes = {
   strategies:{ label: '策略管理', loader: () => import('../modules/strategies.js') },
   lab:       { label: '策略实验室', loader: () => import('../modules/lab.js') },
   research:  { label: 'AI 研究',  loader: () => import('../modules/research.js') },
+  evolution: { label: '进化实验室', loader: () => import('../modules/evolution.js') },
   stocks:    { label: '数据管理', loader: () => import('../modules/stocks.js') },
   admin:     { label: '系统配置', loader: () => import('../modules/admin.js') },
 };
