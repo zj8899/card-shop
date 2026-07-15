@@ -39,6 +39,7 @@ async def dashboard_summary():
         "strategy_ranking": _get_strategy_ranking(),
         "latest_evolution": _get_latest_evolution(),
         "today_auction": _get_today_auction(),
+        "sentiment": _get_sentiment(),
     }
     return ok(result)
 
@@ -97,6 +98,13 @@ def _get_latest_evolution() -> dict:
         }
     except Exception:
         return {"has_evolution": False}
+
+
+def _get_sentiment() -> dict:
+    try:
+        return json.loads((PROJECT_ROOT / "data" / "daily_sentiment.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {"date": datetime.now().strftime("%Y-%m-%d"), "sentiment": {"label": "暂无", "score": 50}}
 
 
 def _get_today_auction() -> dict:

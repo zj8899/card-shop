@@ -201,6 +201,7 @@ function render(state) {
 
   const s = state.summary;
   const summaryCards = s ? [
+    renderSentimentCard(s.sentiment),
     renderDecisionCard(s.today_decision),
     renderRankingCard(s.strategy_ranking),
     renderEvolutionCard(s.latest_evolution),
@@ -492,6 +493,37 @@ function renderAuctionCard(auc) {
   return h('div', { class: 'card', style: 'padding:14px;' }, [
     h('div', { class: 'card-title', style: 'margin-bottom:6px;' }, `🔔 竞价验证(${auc.date||''})`),
     h('div', { style: 'font-size:11px;' }, `✅ 确认 ${auc.confirmed}  ❌ 否认 ${auc.denied}  → 中性 ${auc.neutral} | 确认率 ${auc.confirm_rate}%`),
+  ]);
+}
+
+function renderSentimentCard(sent) {
+  if (!sent || !sent.sentiment) {
+    return h('div', { class: 'card', style: 'padding:14px;' }, [
+      h('div', { class: 'card-title' }, '🌡 市场温度计'),
+      h('span', { style: 'color:var(--text-tertiary);font-size:12px;' }, '等待 14:30 管线产出日报'),
+    ]);
+  }
+  var s = sent.sentiment;
+  var adv = sent.advice || {};
+  var cross = sent.cross_signals || [];
+  var color = s.label === '偏多' ? 'color:var(--brand-teal)' : (s.label === '偏空' ? 'color:var(--text-danger)' : 'color:var(--text-warning)');
+  var strategyStats = sent.strategy_stats || {};
+  var bullEntries = Object.entries(strategyStats).filter(function(e){ return e[1].type === 'bull'; });
+  var bearEntries = Object.entries(strategyStats).filter(function(e){ return e[1].type === 'bear'; });
+
+  return h('div', { class: 'card', style: 'padding:14px;' }, [
+    h('div', { class: 'card-title', style: 'margin-bottom:4px;' }, `🌡 市场温度计 ${sent.date||''}`),
+    h('div', { style: `font-size:18px;font-weight:700;${color};margin:4px 0;` }, `${s.label} (${s.score||'?'}/100)`),
+    h('div', { style: 'font-size:11px;color:var(--text-secondary);margin-bottom:6px;' }, s.summary || ''),
+    h('div', { style: 'font-size:10px;color:var(--text-tertiary);margin-bottom:4px;' },
+      `多头: ${s.bull_count||0}票 ${s.bull_trend==='up'?'↑':s.bull_trend==='down'?'↓':'→'} | 空头: ${s.bear_count||0}票 ${s.bear_trend==='up'?'↑':s.bear_trend==='down'?'↓':'→'}`),
+    cross.length ? h('div', { style: 'font-size:11px;margin-bottom:4px;' }, [
+      h('b', {}, `🎯 高置信(${cross.length}只): `),
+      cross.slice(0, 4).map(function(c){ return h('span', {style:'margin-right:6px;'}, c.symbol + (c.name?' ':'') + (c.name||'')); }),
+    ]) : null,
+    h('div', { style: 'font-size:10px;color:var(--text-secondary);margin-top:4px;' },
+      `建议: ${adv.position||'观望'} | 单票≤${adv.max_single_pct||15}% | ` +
+      '优先: ' + ((adv.priority_strategies||[]).slice(0,2).join(', ') || '—')),
   ]);
 }
 

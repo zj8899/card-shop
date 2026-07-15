@@ -267,9 +267,38 @@ async def _scheduled_scan_scheduler():
     """
     await asyncio.sleep(5)  # 等初始化
 
-    # 记录每个 slot 今天是否已执行过  { (HH,MM,mode): True }
-    today_done: dict[tuple, bool] = {}
+    # 跨重启持久化：启动时用 DB 恢复今天已执行标记
     today_str_last = ""
+    _today_done_cache: set = set()  # {(h,m,mode)}
+
+    def _slot_already_done(h: int, m: int, mode: str, date_str: str) -> bool:
+        key = (h, m, mode)
+        if key in _today_done_cache:
+            return True
+        try:
+            from server.scan_history_db import get_db as _shdb
+            row = _shdb().execute(
+                "SELECT 1 FROM scan_push_log WHERE date=? AND time=? AND mode=?",
+                (date_str, f"{h:02d}:{m:02d}", mode)).fetchone()
+            if row:
+                _today_done_cache.add(key)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _mark_slot_done(h: int, m: int, mode: str, date_str: str):
+        key = (h, m, mode)
+        _today_done_cache.add(key)
+        try:
+            from server.scan_history_db import get_db as _shdb
+            time_s = f"{h:02d}:{m:02d}"
+            _shdb().execute(
+                "INSERT OR IGNORE INTO scan_push_log(date,time,mode) VALUES(?,?,?)",
+                (date_str, time_s, mode))
+            _shdb().commit()
+        except Exception:
+            pass
 
     while True:
         try:
@@ -278,7 +307,7 @@ async def _scheduled_scan_scheduler():
 
             # 跨天重置
             if today_str != today_str_last:
-                today_done.clear()
+                _today_done_cache.clear()
                 today_str_last = today_str
 
             # 仅周一至周五
@@ -314,28 +343,26 @@ async def _scheduled_scan_scheduler():
                 except Exception:
                     continue
 
-                slot_key = (h, m, mode)
-
-                # 今天已跑过
-                if today_done.get(slot_key):
+                # 今天已跑过（跨重启持久化，DB 级去重）
+                if _slot_already_done(h, m, mode, today_str):
                     continue
 
                 # 时间窗口: 目标时间到目标时间+14分钟
                 target_mins = h * 60 + m
                 now_mins = now_h * 60 + now_m
                 if now_mins < target_mins:
-                    continue                                          # 还没到
+                    continue
                 if now_mins > target_mins + 14:
-                    today_done[slot_key] = True                       # 过期, 今天不跑了
+                    _mark_slot_done(h, m, mode, today_str)  # 过期持久化标记
                     continue
 
-                # ── 执行 ──
+                # ── 执行（标记立即落 DB，不等到扫描完成，防重启丢）──
+                _mark_slot_done(h, m, mode, today_str)
                 logger.info("Scheduled scan: [%s] %s TRIGGERED at %s", time_str, label, now_t)
                 try:
                     await _run_scheduled_scan(mode, label, time_str)
                 except Exception as e:
                     logger.error("Scheduled scan [%s] FAILED: %s", label, e, exc_info=True)
-                today_done[slot_key] = True
 
             await asyncio.sleep(30)
 

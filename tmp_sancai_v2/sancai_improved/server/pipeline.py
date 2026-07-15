@@ -82,6 +82,16 @@ async def run_daily_pipeline() -> dict:
         total = report["steps"]["orders"].get("total_amount", 0)
         _pipeline_status["progress"] = f"下单: {n} 票, 总计 ¥{total:,.0f}"
 
+        # ── Step 5.5: 策略市场温度计 ──
+        _pipeline_status["phase"] = "sentiment"
+        try:
+            sentiment = await asyncio.to_thread(
+                _compute_and_push_sentiment, report["steps"]["scan"])
+            report["sentiment"] = sentiment
+            _pipeline_status["progress"] += f" | 温度计:{sentiment.get('sentiment',{}).get('label','?')}"
+        except Exception as e:
+            logger.warning("Sentiment computation failed: %s", e)
+
         # ── Step 6: 飞书推送 ──
         _pipeline_status["phase"] = "feishu_push"
         report["steps"]["feishu"] = await _step_push_feishu(report)
@@ -107,7 +117,20 @@ async def run_daily_pipeline() -> dict:
     return report
 
 
-# ── Step 0: 实时快照（全市场拉一次，15路策略共享）───
+# ── Step 5.5: 温度计计算 + 推飞书 ──
+
+def _compute_and_push_sentiment(scan_step: dict) -> dict:
+    from server.services.sentiment_engine import compute_sentiment
+    result = compute_sentiment(scan_step.get("all_candidates", {}))
+    s = result.get("sentiment", {})
+    logger.info("Sentiment: %s (%d/100) bull=%d bear=%d cross=%d",
+                s.get("label", "?"), s.get("score", 0),
+                s.get("bull_count", 0), s.get("bear_count", 0),
+                len(result.get("cross_signals", [])))
+    return result
+
+
+# ── Step 0: 实时快照 ──
 
 def _fetch_live_snapshot() -> dict[str, dict]:
     """腾讯 API 批量拉取全市场实时行情。一次调用，5200只票约 6-8 秒。
@@ -213,6 +236,7 @@ async def _step_scan_all(live_bars: dict = None) -> dict:
         "modes_scanned": len(all_candidates),
         "total_candidates": len(merged),
         "candidates": merged[:200],
+        "all_candidates": all_candidates,  # 按策略分组的原始数据，供温度计引擎用
     }
 
 
