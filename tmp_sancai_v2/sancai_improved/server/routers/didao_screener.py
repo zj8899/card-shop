@@ -490,3 +490,135 @@ async def get_stock_valuation_didao(symbol: str):
         return _ok({'symbol': symbol, 'valuation': result})
     except Exception as e:
         return _err(f'估值获取失败: {e}')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 集合竞价解读看板
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/didao/screener/auction-board")
+async def get_auction_board():
+    """集合竞价解读看板：昨日扫描策略 × 今日竞价数据 = 解读。
+
+    对比昨日各策略扫描出的标的在今天竞价中的表现（高开/低开/量能），
+    给出每条策略信号的竞价确认/否认解读。
+    """
+    from datetime import datetime, timedelta
+    from server.auction import fetch_auction_data, _batch_fetch_em
+    from server.scan_history_db import get_db as _gdb, get_scan_results
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # 1. 获取昨日所有扫描模式
+    db = _gdb()
+    try:
+        modes = db.execute(
+            "SELECT DISTINCT mode FROM scan_summary WHERE date=? ORDER BY mode",
+            (yesterday,)
+        ).fetchall()
+    except Exception:
+        modes = []
+
+    MODE_LABELS = {
+        "strict": "三才BP1(超跌)", "strict_reverse": "追涨突破",
+        "simple": "KDJ超卖", "schools": "多学派共识",
+        "chan_theory": "缠论", "ict": "ICT", "price_action": "价格行为",
+        "wyckoff": "威科夫", "morphology": "形态学",
+        "gann": "江恩", "wave_theory": "波浪", "dow_theory": "道氏",
+    }
+
+    boards = []
+    all_symbols = set()
+
+    for (mode,) in modes:
+        results = get_scan_results(yesterday, mode)
+        if not results:
+            continue
+        for r in results:
+            all_symbols.add(r["symbol"])
+        boards.append({
+            "mode": mode,
+            "label": MODE_LABELS.get(mode, mode),
+            "date": yesterday,
+            "count": len(results),
+            "stocks": results[:8],  # 每条策略展示 Top 8
+        })
+
+    # 2. 拉取今日竞价数据（只拉取这些标的）
+    stocks_map = {}
+    if all_symbols:
+        fetched = _batch_fetch_em(list(all_symbols)[:50])
+        stocks_map = {s["symbol"]: s for s in fetched}
+
+    # 3. 逐策略解读: 昨日信号 vs 今日竞价
+    for board in boards:
+        interpretations = []
+        confirmed = 0
+        denied = 0
+        for s in board["stocks"]:
+            sym = s["symbol"]
+            auc = stocks_map.get(sym)
+            if not auc:
+                continue
+            gap = auc["gap_pct"]
+            vol_r = auc["vol_ratio"]
+            scan_confidence = s.get("confidence", 0)
+
+            # 解读逻辑
+            if board["mode"] == "strict_reverse":  # 追涨突破: 期望高开确认
+                if gap > 1 and vol_r > 1.2:
+                    verdict = "confirmed"
+                    note = f"高开{gap:+.1f}% 放量{vol_r:.1f}x — 竞价确认追涨, 可关注"
+                elif gap > 0:
+                    verdict = "neutral"
+                    note = f"小幅高开{gap:+.1f}% — 竞价中性, 待盘中确认"
+                else:
+                    verdict = "denied"
+                    note = f"低开{gap:+.1f}% — 竞价否认追涨信号, 放弃"
+            elif board["mode"] in ("strict", "simple"):  # BP1/KDJ超卖(抄底): 低开后反弹才好
+                if -3 < gap < 0:
+                    verdict = "confirmed"
+                    note = f"小幅低开{gap:+.1f}% — 超跌标的小幅低开, 可抄底"
+                elif gap > 1:
+                    verdict = "denied"
+                    note = f"高开{gap:+.1f}% — 超跌票高开不抄底, 等回落"
+                else:
+                    verdict = "neutral"
+                    note = f"开{gap:+.1f}% — 竞价中性, 观察盘中"
+            else:  # 各流派通用
+                if gap > 2 and vol_r > 1.5:
+                    verdict = "confirmed"
+                    note = f"强势高开{gap:+.1f}% 放量{vol_r:.1f}x — 竞价确认"
+                elif gap < -2:
+                    verdict = "denied"
+                    note = f"大幅低开{gap:+.1f}% — 竞价否认, 放弃"
+                else:
+                    verdict = "neutral"
+                    note = f"正常竞价{gap:+.1f}% — 关注盘中走势"
+
+            if verdict == "confirmed": confirmed += 1
+            elif verdict == "denied": denied += 1
+
+            interpretations.append({
+                "symbol": sym, "name": auc.get("name", s.get("name", "")),
+                "gap_pct": gap, "vol_ratio": vol_r,
+                "price": auc["price"], "prev_close": auc["prev_close"],
+                "change_pct": auc["change_pct"],
+                "volume": auc["volume"],
+                "verdict": verdict, "note": note,
+                "scan_confidence": scan_confidence,
+            })
+
+        board["interpretations"] = interpretations
+        board["confirmed"] = confirmed
+        board["denied"] = denied
+        board["data_quality"] = f"{len(interpretations)}/{len(board['stocks'])} 只有竞价数据"
+
+    return _ok({
+        "date": today_str,
+        "scan_date": yesterday,
+        "is_auction_window": datetime.now().hour < 9 or (datetime.now().hour == 9 and datetime.now().minute < 30),
+        "boards": boards,
+        "data_source": "eastmoney_push2",
+    })

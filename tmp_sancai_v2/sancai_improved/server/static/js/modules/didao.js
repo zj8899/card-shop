@@ -54,6 +54,15 @@ export async function mount(container) {
   '</div>'+
   '<div id="ds-results" style="font-size:18px"></div>'+
   '<div id="ds-dd-panel" style="display:none;margin-top:8px"></div>'+
+
+  // ── 集合竞价解读看板 ──
+  '<div class="card" style="margin-top:12px;padding:12px 14px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<b style="font-size:13px">🔔 竞价策略解读</b>'+
+      '<button class="btn btn-xs btn-primary" onclick="window._auctionLoad()">刷新竞价</button>'+
+    '</div>'+
+    '<div id="auction-board" style="font-size:12px;color:var(--text-secondary)">点击刷新获取昨日扫描×今日竞价解读</div>'+
+  '</div>'+
 '</div>';
 
   // 历史记录+尽调异步加载 (不阻塞页面)
@@ -672,3 +681,52 @@ async function _loadStockConcepts(sym) {
     }
   };
 })();
+
+// ══════════════════════════════════════════════════════════════
+// 集合竞价解读
+// ══════════════════════════════════════════════════════════════
+
+window._auctionLoad = async function() {
+  var el = document.getElementById('auction-board');
+  if (!el) return;
+  el.innerHTML = '<span style="color:var(--text-tertiary)">加载中…</span>';
+  try {
+    var r = await api.get('/api/didao/screener/auction-board', {timeoutMs:45000});
+    var data = (r && r.data) || r || {};
+    var boards = data.boards || [];
+    if (!boards.length) {
+      el.innerHTML = '<span style="color:var(--text-tertiary)">无昨日扫描数据，先跑一次策略扫描</span>';
+      return;
+    }
+    var html = '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">';
+    html += '📅 扫描日期: ' + (data.scan_date || '?') + ' | 竞价日期: ' + (data.date || '?');
+    html += ' | 数据源: ' + (data.data_source || '?') + '</div>';
+    for (var b = 0; b < boards.length; b++) {
+      var board = boards[b];
+      html += '<div style="border:1px solid var(--border-hairline);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--bg-input)">';
+      html += '<b style="font-size:13px">' + (board.label || board.mode) + '</b>';
+      html += ' <span style="font-size:11px;color:var(--text-tertiary)">' + board.count + '只选中</span>';
+      html += ' | ✅<span style="color:var(--brand-teal)">' + (board.confirmed || 0) + '</span>';
+      html += ' ❌<span style="color:var(--text-danger)">' + (board.denied || 0) + '</span>';
+      html += ' <span style="font-size:10px;color:var(--text-tertiary)">' + (board.data_quality || '') + '</span>';
+      var ints = board.interpretations || [];
+      if (ints.length) {
+        html += '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">';
+        for (var i = 0; i < ints.length; i++) {
+          var x = ints[i];
+          var cls = x.verdict === 'confirmed' ? 'color:var(--brand-teal);' : (x.verdict === 'denied' ? 'color:var(--text-danger);' : 'color:var(--text-secondary);');
+          var sym = x.symbol || '';
+          html += '<div style="font-size:11px;padding:4px 8px;border-radius:4px;background:var(--bg-sunken);border:1px solid var(--border-hairline);min-width:160px">';
+          html += '<b>' + sym + '</b> ' + (x.name || '') + ' 价' + (x.price||'-') + ' 开' + (x.gap_pct>0?'+':'') + (x.gap_pct||0).toFixed(1) + '%';
+          html += '<div style="' + cls + ';font-size:10px">' + (x.note || '') + '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<span style="color:var(--text-danger)">加载失败: ' + (e.message||e) + '</span>';
+  }
+};
