@@ -48,7 +48,8 @@ from fastapi.responses import FileResponse, Response
 
 from .routers import (data, backtest,
                           didao_screener, holdings, admin,
-                        ai_chat, user_strategies, research, review, strategy_lab, news, evolution)
+                        ai_chat, user_strategies, research, review, strategy_lab, news, evolution,
+                        pipeline)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -87,6 +88,14 @@ async def lifespan(app: FastAPI):
     # Auto-fill tail gaps on startup — skip entirely, too slow
     # Data updates handled by monitor post-market window (15:30-16:00)
     logger.info("Startup data auto-fill skipped (handled by monitor)")
+
+    # ── 每日决策管线调度器 ──
+    try:
+        from server.pipeline import pipeline_scheduler
+        _pipeline_task = asyncio.create_task(pipeline_scheduler())
+        logger.info("Daily pipeline scheduler started (14:30 trigger)")
+    except Exception as e:
+        logger.warning(f"Pipeline scheduler init skipped: {e}")
 
     yield
     # Shutdown
@@ -175,6 +184,7 @@ app.include_router(review.router, prefix="/api", tags=["Review"])
 app.include_router(strategy_lab.router, prefix="/api", tags=["Strategy Lab"])
 app.include_router(news.router, prefix="/api", tags=["News Events"])
 app.include_router(evolution.router, prefix="/api", tags=["Evolution"])
+app.include_router(pipeline.router, prefix="/api", tags=["Pipeline"])
 
 # Static files (dashboard HTML/JS/CSS)
 static_dir = Path(__file__).parent / "static"
