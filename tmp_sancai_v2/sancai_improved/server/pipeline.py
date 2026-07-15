@@ -362,10 +362,135 @@ async def _step_push_feishu(report: dict) -> dict:
 
 # ── 调度器 ──
 
+# ── 15:00 补漏 + 持仓审查 ──
+
+async def _run_position_review():
+    """检查所有策略账户的持仓：信号确认(追涨票仍在涨?)、止损、止盈。
+
+    15:00 执行，15:25 前完成。输出 sell/adjust 订单到 live_journal。
+    """
+    try:
+        from server.live_engine import get_db as _gdb
+        db = _gdb()
+        rows = db.execute(
+            "SELECT * FROM account_positions WHERE shares > 0"
+        ).fetchall()
+        if not rows:
+            logger.info("Position review: no open positions")
+            return
+
+        # 获取实时价格（用腾讯 API 最后一批数据即可）
+        from server.auction import _batch_fetch_em
+        symbols = list({r["symbol"] for r in rows})
+        prices = _batch_fetch_em(symbols)
+        price_map = {p["symbol"]: p for p in prices}
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        reviews = []
+
+        for pos in rows:
+            sym = pos["symbol"]
+            acc_id = pos["account_id"]
+            avg_cost = pos["avg_cost"]
+            shares = pos["shares"]
+            bar = price_map.get(sym, {})
+            price = bar.get("price", 0)
+            if price <= 0:
+                continue
+
+            pnl_pct = round((price - avg_cost) / avg_cost * 100, 2) if avg_cost > 0 else 0
+            action = "hold"
+            reason = ""
+
+            # 止损: [-5%]
+            if pnl_pct <= -5:
+                action = "sell_all"
+                reason = f"止损, 跌{pnl_pct:+.1f}% (成本{avg_cost})"
+            # 止盈: [+15%]
+            elif pnl_pct >= 15:
+                action = "sell_half"
+                reason = f"止盈, 涨{pnl_pct:+.1f}% 减半仓"
+            # 刷新策略信号：该票仍然被当前策略选中吗?
+            elif acc_id in ("strict_reverse",):  # 追涨票：价还在涨?
+                chg = bar.get("change_pct", 0)
+                if chg < -2:
+                    action = "sell_all"
+                    reason = f"追涨失败, 今日跌{chg:+.1f}%, 清仓"
+                elif chg < 0:
+                    action = "sell_half"
+                    reason = f"追涨弱化, 今日微跌{chg:+.1f}%, 减半仓"
+            elif acc_id in ("strict", "simple"):  # 超跌票：还在低位吗?
+                if pnl_pct > 8:
+                    action = "sell_half"
+                    reason = f"抄底修复, 涨{pnl_pct:+.1f}%, 减半仓"
+
+            reviews.append({
+                "account_id": acc_id, "symbol": sym, "price": price,
+                "pnl_pct": pnl_pct, "action": action, "reason": reason,
+                "shares": shares, "avg_cost": avg_cost,
+            })
+
+            # 执行卖出
+            if action.startswith("sell"):
+                sell_qty = shares if action == "sell_all" else shares // 2
+                sell_qty = (sell_qty // 100) * 100
+                if sell_qty < 100:
+                    continue
+                cost = round(sell_qty * price * (1 + 0.00025 + 0.0005), 2)  # 佣金+印花税
+                pnl = round((price - avg_cost) * sell_qty - cost, 2)
+                db.execute(
+                    "INSERT INTO account_trades(account_id,date,symbol,side,price,shares,cost,reason,pnl) VALUES(?,?,?,?,?,?,?,?,?)",
+                    (acc_id, today, sym, "sell", price, sell_qty, cost, reason, pnl))
+                new_shares = shares - sell_qty
+                if new_shares > 0:
+                    db.execute(
+                        "UPDATE account_positions SET shares=?, current_price=?, unrealized_pnl=? WHERE account_id=? AND symbol=?",
+                        (new_shares, price, round((price - avg_cost) * new_shares, 2), acc_id, sym))
+                else:
+                    db.execute(
+                        "DELETE FROM account_positions WHERE account_id=? AND symbol=?",
+                        (acc_id, sym))
+                # 返还现金
+                db.execute("UPDATE accounts SET cash=cash+? WHERE id=?", (cost, acc_id))
+                logger.info("Position review: %s %s %s %s股 @%s pnl=%s",
+                            acc_id, sym, action, sell_qty, price, pnl)
+
+        db.commit()
+        logger.info("Position review done: %d positions, %d actions",
+                    len(rows), sum(1 for r in reviews if r["action"] != "hold"))
+
+        # 飞书推送（如果 toggles 允许）
+        try:
+            import os
+            webhook = os.environ.get("FEISHU_WEBHOOK_URL", "")
+            if webhook:
+                try:
+                    toggles = json.loads((PROJECT_ROOT / "data" / "feishu_toggles.json").read_text())
+                    if not toggles.get("daily_close", True):
+                        return
+                except Exception:
+                    pass
+                from server.notify.feishu import FeishuNotifier
+                actions = [r for r in reviews if r["action"] != "hold"]
+                if actions:
+                    body = "**📋 15:00 持仓审查**\n\n"
+                    for a in actions[:10]:
+                        body += f"• {a['symbol']} {a['action']} {a['shares']}股 @{a['price']:.2f} {a['reason']}\n"
+                    notifier = FeishuNotifier(webhook)
+                    await notifier.send_card("📋 持仓审查", body, "yellow", cooldown_key="pos_review", cooldown_seconds=3600)
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.error("Position review failed: %s", e, exc_info=True)
+
+
 async def pipeline_scheduler():
-    """后台调度: 工作日 14:30 自动触发决策管线."""
+    """后台调度: 14:30 决策 + 15:00 补漏 + 全天持仓审查."""
     await asyncio.sleep(10)
-    today_done = ""
+    _14_done = False
+    _15_done = False
+    _pos_review_done = False
     while True:
         try:
             now = datetime.now()
@@ -373,15 +498,29 @@ async def pipeline_scheduler():
                 await asyncio.sleep(60)
                 continue
             today_str = now.strftime("%Y%m%d")
-            if today_str != today_done:
-                today_done = today_str
-
             t = now.time()
-            # 14:30 ± 1分钟窗口
-            if dt_time(14, 30) <= t <= dt_time(14, 32) and today_done == today_str:
-                logger.info("Pipeline triggered at %s", t)
+
+            # ── 14:30 正常决策 ──
+            if dt_time(14, 30) <= t <= dt_time(14, 34) and not _14_done:
+                _14_done = True
+                logger.info("Pipeline: 14:30 trigger")
                 await run_daily_pipeline()
-                today_done = ""  # 当天已跑, 防止重复
+
+            # ── 15:00 补漏 + 持仓审查 ──
+            if dt_time(15, 0) <= t <= dt_time(15, 4) and not _15_done:
+                _15_done = True
+                if not _14_done or (not PLAN_PATH.exists()):
+                    # 14:30 没跑、或 plan 没成功落盘
+                    logger.info("Pipeline catch-up: 14:30 missed, running now (deadline 15:25)")
+                    _14_done = True  # 防止二次补
+                await _run_position_review()  # 补漏+持仓审查
+                _pos_review_done = True
+
+            # 跨天重置
+            if now.strftime("%Y%m%d") != today_str:
+                _14_done = False
+                _15_done = False
+                _pos_review_done = False
 
             await asyncio.sleep(45)
         except asyncio.CancelledError:

@@ -289,21 +289,22 @@ tools:
       time: '10:00'
       mode: schools
       label: 8流派共识买入
-  # ── 每日决策管线 ──
-  daily_pipeline:
-    enabled: true
-    trigger_time: '14:30'
-    order_deadline: '14:52'
-    max_candidates_per_strategy: 15
-    max_orders_total: 20
-  # ── 飞书推送开关 ──
-  feishu_toggles:
-    enabled: true
-    daily_decision: true
-    auction_confirm: true
-    daily_close: true
-    evolution_report: true
-    realtime_signal: false
+daily_pipeline:
+  enabled: true
+  trigger_time: '14:30'
+  order_deadline: '14:52'
+  catchup_time: '15:00'
+  catchup_deadline: '15:25'
+  position_review: true
+  max_candidates_per_strategy: 15
+  max_orders_total: 20
+feishu_toggles:
+  enabled: true
+  daily_decision: true
+  auction_confirm: true
+  daily_close: true
+  evolution_report: true
+  realtime_signal: false
 trend:
   four_bar_recalc: true
   threshold_accelerating: 0.002
