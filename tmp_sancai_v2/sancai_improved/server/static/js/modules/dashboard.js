@@ -25,6 +25,7 @@ const store = createStore({
   dataHealth: { loading: false, status: null, freshness: null },
   summary: null,
   _summaryTimer: 0,
+  liveAccounts: null,
 });
 
 let root;
@@ -41,6 +42,7 @@ export async function mount(container) {
   await Promise.all([loadFocus(), loadNews(), loadHoldings(), loadRegime(), loadDataHealth()]);
   loadQuotes();
   loadSummary();
+  loadLiveAccounts();
 }
 
 export function onShow() {
@@ -203,7 +205,10 @@ function render(state) {
     renderRankingCard(s.strategy_ranking),
     renderEvolutionCard(s.latest_evolution),
     renderAuctionCard(s.today_auction),
-  ] : [];
+    renderLiveAccountsCard(state),
+  ] : [
+    renderLiveAccountsCard(state),
+  ];
   root.replaceChildren(
     regimeCard,
     h('div', { class: 'dash-hero' }, [
@@ -422,10 +427,16 @@ async function loadSummary() {
     const res = await api.get('/api/dashboard/summary', { timeoutMs: 8000 });
     store.set({ summary: res?.data || res });
   } catch (e) { /* silent */ }
-  // 30s 轮询
   if (store.get()._summaryTimer) clearInterval(store.get()._summaryTimer);
   const timer = setInterval(loadSummary, 30000);
   store.set({ _summaryTimer: timer });
+}
+
+async function loadLiveAccounts() {
+  try {
+    const res = await api.get('/api/dashboard/live-positions', { timeoutMs: 8000 });
+    store.set({ liveAccounts: res?.data || res });
+  } catch (e) { /* silent */ }
 }
 
 export function onHide() {
@@ -481,5 +492,29 @@ function renderAuctionCard(auc) {
   return h('div', { class: 'card', style: 'padding:14px;' }, [
     h('div', { class: 'card-title', style: 'margin-bottom:6px;' }, `🔔 竞价验证(${auc.date||''})`),
     h('div', { style: 'font-size:11px;' }, `✅ 确认 ${auc.confirmed}  ❌ 否认 ${auc.denied}  → 中性 ${auc.neutral} | 确认率 ${auc.confirm_rate}%`),
+  ]);
+}
+
+function renderLiveAccountsCard(state) {
+  const la = state.liveAccounts;
+  const accounts = la?.accounts || [];
+  if (!la || !accounts.length) {
+    return h('div', { class: 'card', style: 'padding:14px;' }, [
+      h('div', { class: 'card-title' }, '💼 策略实盘账户'),
+      h('span', { style: 'color:var(--text-tertiary);font-size:12px;' }, '14:30管线启动后自动创建账户, 积累数据后显示持仓和交易记录'),
+    ]);
+  }
+  const rows = accounts.slice(0, 10).map((a) => {
+    const posList = (a.positions || []).map((p) => `${p.symbol} ${p.shares}股 @${(p.avg_cost||0).toFixed(2)}`);
+    const tradeList = (a.trades || []).slice(0, 5).map((t) => `${t.date} ${t.side} ${t.symbol} ${t.shares}股 @${(t.price||0).toFixed(2)}`);
+    return h('details', { style: 'margin-bottom:6px;font-size:11px;' }, [
+      h('summary', {}, `${a.label || a.account?.id || '?'}  权益¥${(a.account?.total_equity||0).toFixed(0)}  持仓${posList.length}笔  交易${(a.trades||[]).length}笔`),
+      posList.length ? h('div', { style: 'margin:4px 0;color:var(--brand-teal);' }, '持仓: ' + posList.join(' | ')) : null,
+      tradeList.length ? h('div', { style: 'color:var(--text-secondary);' }, tradeList.join('<br>')) : null,
+    ]);
+  });
+  return h('div', { class: 'card', style: 'padding:14px;' }, [
+    h('div', { class: 'card-title', style: 'margin-bottom:8px;' }, `💼 策略实盘账户(${accounts.length}个)`),
+    ...rows,
   ]);
 }

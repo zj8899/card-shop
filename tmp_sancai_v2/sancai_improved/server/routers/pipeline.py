@@ -145,6 +145,48 @@ async def set_toggles(req: FeishuToggleReq):
     return ok({"status": "saved"})
 
 
+@router.get("/dashboard/live-positions")
+async def live_positions():
+    """各策略独立账户的持仓+交易记录聚合。"""
+    try:
+        from server.live_engine import get_db as _gdb, get_strategy_ranking
+        db = _gdb()
+        accounts = [dict(r) for r in db.execute(
+            "SELECT * FROM accounts WHERE type='strategy' ORDER BY total_equity DESC"
+        ).fetchall()]
+        result = []
+        MODE_LABELS = {
+            "strict": "三才BP1", "strict_reverse": "追涨突破", "simple": "KDJ超卖",
+            "schools": "多学派共识", "chan_theory": "缠论", "ict": "ICT",
+            "price_action": "价格行为", "wyckoff": "威科夫", "morphology": "形态学",
+            "gann": "江恩", "wave_theory": "波浪", "dow_theory": "道氏",
+        }
+        for acc in accounts:
+            aid = acc["id"]
+            positions = [dict(r) for r in db.execute(
+                "SELECT * FROM account_positions WHERE account_id=? AND shares>0", (aid,)
+            ).fetchall()]
+            trades = [dict(r) for r in db.execute(
+                "SELECT * FROM account_trades WHERE account_id=? ORDER BY date DESC, id DESC LIMIT 20",
+                (aid,)
+            ).fetchall()]
+            equity = [dict(r) for r in db.execute(
+                "SELECT * FROM equity_log WHERE account_id=? ORDER BY date DESC LIMIT 30",
+                (aid,)
+            ).fetchall()]
+            result.append({
+                "account": dict(acc),
+                "label": MODE_LABELS.get(aid, aid),
+                "positions": positions,
+                "trades": trades,
+                "equity": equity,
+            })
+        ranking = get_strategy_ranking(30)
+        return ok({"accounts": result, "ranking": ranking})
+    except Exception as e:
+        return ok({"accounts": [], "ranking": [], "error": str(e)})
+
+
 @router.get("/pipeline/status")
 async def pipeline_status():
     """查询决策管线当前状态."""
