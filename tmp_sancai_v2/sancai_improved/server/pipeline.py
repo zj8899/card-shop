@@ -185,9 +185,13 @@ async def _step_scan_all(live_bars: dict = None) -> dict:
             logger.warning("Scan %s failed: %s", mode, e)
             return mode, None
 
-    # 并行跑全部策略
+    # 并行跑全部策略（限 3 路并发，避免 13 路同时抢 DuckDB 游标导致 OOM/卡死）
     all_candidates = {}
-    tasks = [asyncio.create_task(_scan_one(m)) for m in unique]
+    sem = asyncio.Semaphore(3)
+    async def _scan_one_limited(mode):
+        async with sem:
+            return await _scan_one(mode)
+    tasks = [asyncio.create_task(_scan_one_limited(m)) for m in unique]
     for task in asyncio.as_completed(tasks):
         mode, result = await task
         if result and result.get("matched", 0) > 0:
