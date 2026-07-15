@@ -23,6 +23,8 @@ const store = createStore({
   emotion: null,  // V4 emotion index
   quotes: { loading: false, data: {} },
   dataHealth: { loading: false, status: null, freshness: null },
+  summary: null,
+  _summaryTimer: 0,
 });
 
 let root;
@@ -38,12 +40,14 @@ export async function mount(container) {
   bindRender(store, render);
   await Promise.all([loadFocus(), loadNews(), loadHoldings(), loadRegime(), loadDataHealth()]);
   loadQuotes();
+  loadSummary();
 }
 
 export function onShow() {
   loadHoldings().then(() => loadQuotes());
   loadRegime();
   loadDataHealth();
+  loadSummary();
 }
 
 // ── Data loaders ──
@@ -193,6 +197,13 @@ function render(state) {
       ])
     : null;
 
+  const s = state.summary;
+  const summaryCards = s ? [
+    renderDecisionCard(s.today_decision),
+    renderRankingCard(s.strategy_ranking),
+    renderEvolutionCard(s.latest_evolution),
+    renderAuctionCard(s.today_auction),
+  ] : [];
   root.replaceChildren(
     regimeCard,
     h('div', { class: 'dash-hero' }, [
@@ -214,6 +225,7 @@ function render(state) {
       ]),
       renderHoldingsCard(state.holdings, state),
     ]),
+    ...summaryCards,
   );
 }
 
@@ -401,4 +413,73 @@ function selectStrategy(selected) {
   const sel = h('select', { name: 'strategy', style: 'width:110px;' },
     Object.entries(STRATEGY_LABELS).map(([v, label]) => h('option', { value: v, selected: v === selected ? 'selected' : undefined }, label)));
   return sel;
+}
+
+// ── 仪表盘: 决策管线+进化+竞价摘要 (30s轮询) ──
+
+async function loadSummary() {
+  try {
+    const res = await api.get('/api/dashboard/summary', { timeoutMs: 8000 });
+    store.set({ summary: res?.data || res });
+  } catch (e) { /* silent */ }
+  // 30s 轮询
+  if (store.get()._summaryTimer) clearInterval(store.get()._summaryTimer);
+  const timer = setInterval(loadSummary, 30000);
+  store.set({ _summaryTimer: timer });
+}
+
+export function onHide() {
+  const timer = store.get()._summaryTimer;
+  if (timer) { clearInterval(timer); store.set({ _summaryTimer: 0 }); }
+}
+
+function renderDecisionCard(d) {
+  if (!d || !d.has_plan) {
+    return h('div', { class: 'card', style: 'padding:14px;' }, [h('div', { class: 'card-title' }, '📊 今日决策'), h('span', { style: 'color:var(--text-tertiary);font-size:12px;' }, '等待 14:30 决策管线触发')]);
+  }
+  const rows = (d.orders || []).map((o) =>
+    h('div', { style: 'font-size:11px;padding:3px 0;' }, `${o.symbol} ${o.name||''} ${o.shares}股 ¥${(o.cost||0).toFixed(0)}`));
+  return h('div', { class: 'card', style: 'padding:14px;' }, [
+    h('div', { class: 'card-title', style: 'margin-bottom:6px;' }, `📊 今日决策 ${d.date||''}`),
+    h('div', { style: 'font-size:11px;color:var(--text-secondary);margin-bottom:6px;' }, `候选${d.candidates}→新闻${d.after_news}→概念${d.after_concept}→下单${d.order_count}票 ¥${(d.total_amount||0).toFixed(0)} ${d.elapsed_s?'耗时'+d.elapsed_s+'s':''}`),
+    ...rows.slice(0, 5),
+    d.order_count > 5 ? h('div', { style: 'font-size:10px;color:var(--text-tertiary);' }, `...还有 ${d.order_count-5} 票`) : null,
+  ]);
+}
+
+function renderRankingCard(ranking) {
+  if (!ranking || !ranking.length) {
+    return h('div', { class: 'card', style: 'padding:14px;' }, [h('div', { class: 'card-title' }, '🏆 策略实盘业绩'), h('span', { style: 'color:var(--text-tertiary);font-size:12px;' }, '尚无实盘数据，积累交易后自动显示')]);
+  }
+  const rows = ranking.slice(0, 8).map((r, i) =>
+    h('div', { style: `display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid var(--border-hairline);${r.return_pct>0?'color:var(--brand-teal)':'color:var(--text-danger)'}` }, [
+      h('span', {}, `${i+1}. ${r.name}`),
+      h('span', {}, `${r.return_pct>0?'+':''}${(r.return_pct||0).toFixed(1)}% | 胜率${(r.win_rate||0).toFixed(0)}% | ${r.total_trades}笔`),
+    ]));
+  return h('div', { class: 'card', style: 'padding:14px;' }, [
+    h('div', { class: 'card-title', style: 'margin-bottom:6px;' }, '🏆 策略实盘业绩(30日)'),
+    ...rows,
+  ]);
+}
+
+function renderEvolutionCard(evo) {
+  if (!evo || !evo.has_evolution) {
+    return h('div', { class: 'card', style: 'padding:14px;' }, [h('div', { class: 'card-title' }, '🧬 最新进化'), h('span', { style: 'color:var(--text-tertiary);font-size:12px;' }, '收盘后自动蒸馏进化')]);
+  }
+  const strats = (evo.new_strategies || []).slice(0, 3);
+  return h('div', { class: 'card', style: 'padding:14px;' }, [
+    h('div', { class: 'card-title', style: 'margin-bottom:6px;' }, '🧬 最新进化'),
+    strats.length ? h('div', { style: 'font-size:11px;' }, strats.map((s) => h('span', { class: 'badge badge-ai', style: 'margin:2px;' }, s))) :
+      h('span', { style: 'color:var(--text-tertiary);font-size:11px;' }, '等待首次蒸馏'),
+  ]);
+}
+
+function renderAuctionCard(auc) {
+  if (!auc || auc.total === 0) {
+    return h('div', { class: 'card', style: 'padding:14px;' }, [h('div', { class: 'card-title' }, '🔔 竞价验证'), h('span', { style: 'color:var(--text-tertiary);font-size:12px;' }, '次日竞价后自动显示')]);
+  }
+  return h('div', { class: 'card', style: 'padding:14px;' }, [
+    h('div', { class: 'card-title', style: 'margin-bottom:6px;' }, `🔔 竞价验证(${auc.date||''})`),
+    h('div', { style: 'font-size:11px;' }, `✅ 确认 ${auc.confirmed}  ❌ 否认 ${auc.denied}  → 中性 ${auc.neutral} | 确认率 ${auc.confirm_rate}%`),
+  ]);
 }
