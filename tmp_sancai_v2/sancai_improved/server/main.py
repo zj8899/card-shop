@@ -89,6 +89,14 @@ async def lifespan(app: FastAPI):
     # Data updates handled by monitor post-market window (15:30-16:00)
     logger.info("Startup data auto-fill skipped (handled by monitor)")
 
+    # ── DuckDB 预建表（避免 14:30 管线首次扫描卡 30-60 秒）───
+    try:
+        from server.db import get_db
+        get_db()  # triggers _init_views → daily_klines TABLE
+        logger.info("DuckDB views pre-built")
+    except Exception as e:
+        logger.warning(f"DuckDB pre-build skipped: {e}")
+
     # ── 每日决策管线调度器 ──
     try:
         from server.pipeline import pipeline_scheduler

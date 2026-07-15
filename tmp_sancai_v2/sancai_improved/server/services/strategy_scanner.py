@@ -93,10 +93,13 @@ def _get_name_map() -> dict[str, str]:
 # Data loading
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _bulk_load_via_duckdb(symbols: list[str], tail_bars: int = 300) -> dict[str, pd.DataFrame]:
+def _bulk_load_via_duckdb(symbols: list[str], tail_bars: int = 300,
+                          live_bars: dict = None) -> dict[str, pd.DataFrame]:
     """Bulk load daily data for all symbols via DuckDB.
 
-    Returns dict[symbol] = DataFrame with columns [date, open, high, low, close, volume].
+    If live_bars is provided, appends each symbol's live bar as a new row
+    (in-memory, does NOT modify disk data). This lets strategies evaluate
+    against today's real-time price instead of yesterday's close.
     """
     from server.db import get_db
     db = get_db()
@@ -116,8 +119,30 @@ def _bulk_load_via_duckdb(symbols: list[str], tail_bars: int = 300) -> dict[str,
         df = grp.drop(columns=["_sym"])
         if len(df) > tail_bars:
             df = df.tail(tail_bars)
-        result[sym] = df.reset_index(drop=True)
-    logger.info(f"DuckDB loaded {len(result)} symbols (tail_bars={tail_bars})")
+        df = df.reset_index(drop=True)
+
+        # 追加实时 bar（内存操作，不改磁盘）
+        if live_bars and sym in live_bars:
+            bar = live_bars[sym]
+            if bar.get("price", 0) > 0:
+                today_str = str(bar.get("date", pd.Timestamp.now().strftime("%Y-%m-%d")))
+                # 检查是否已有今天的数据（避免重复追加）
+                last_date = str(df["date"].iloc[-1])[:10] if "date" in df.columns else ""
+                if last_date != today_str:
+                    volume = bar.get("volume", 0) or 100
+                    new_row = pd.DataFrame([{
+                        "date": today_str,
+                        "open": bar.get("open", bar["price"]),
+                        "high": bar.get("high", bar["price"]),
+                        "low": bar.get("low", bar["price"]),
+                        "close": bar["price"],
+                        "volume": volume,
+                        "amount": bar.get("amount", 0) or 0,
+                        "pct_change": bar.get("change_pct", 0) or 0,
+                    }])
+                    df = pd.concat([df, new_row], ignore_index=True)
+        result[sym] = df
+    logger.info(f"DuckDB loaded {len(result)} symbols (tail_bars={tail_bars}, live_bars={bool(live_bars)})")
     return result
 
 
@@ -1231,7 +1256,8 @@ def scan_market(mode: str = "strict",
                 buy_type_filter: str = "",
                 min_price: float = 0,
                 exclude_st: bool = True,
-                cancel_check=None) -> dict:
+                cancel_check=None,
+                live_bars: dict = None) -> dict:
     """Main entry: scan entire market for strategy BUY signals.
 
     Args:
@@ -1265,7 +1291,7 @@ def scan_market(mode: str = "strict",
     try:
         if mode in _LIGHTWEIGHT_MODES:
             # ── Path A: Lightweight numeric scan ──
-            data = _bulk_load_via_duckdb(symbols, tail_bars)
+            data = _bulk_load_via_duckdb(symbols, tail_bars, live_bars=live_bars)
 
             if not data:
                 # Fallback: per-symbol parquet loading

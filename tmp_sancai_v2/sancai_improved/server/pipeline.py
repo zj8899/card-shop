@@ -43,10 +43,20 @@ async def run_daily_pipeline() -> dict:
     t0 = time_module.time()
     report = {"date": datetime.now().strftime("%Y-%m-%d"), "steps": {}}
 
+    # ── Step 0: 实时快照（全市场拉一次,15路策略共享）───
+    _pipeline_status["phase"] = "live_snapshot"
+    live_bars = {}
     try:
-        # ── Step 1: 全策略并行扫描 ──
+        live_bars = await asyncio.to_thread(_fetch_live_snapshot)
+        _pipeline_status["progress"] = f"实时快照: {len(live_bars)} 只票"
+        logger.info("Live snapshot: %d stocks", len(live_bars))
+    except Exception as e:
+        logger.warning("Live snapshot failed, using yesterday's data only: %s", e)
+
+    try:
+        # ── Step 1: 全策略并行扫描（注入实时快照）───
         _pipeline_status["phase"] = "scanning"
-        report["steps"]["scan"] = await _step_scan_all()
+        report["steps"]["scan"] = await _step_scan_all(live_bars)
         _pipeline_status["progress"] = f"扫描完成: 候选池 {report['steps']['scan']['total_candidates']} 票"
 
         # ── Step 2: 新闻交叉过滤 ──
@@ -97,28 +107,94 @@ async def run_daily_pipeline() -> dict:
     return report
 
 
+# ── Step 0: 实时快照（全市场拉一次，15路策略共享）───
+
+def _fetch_live_snapshot() -> dict[str, dict]:
+    """腾讯 API 批量拉取全市场实时行情。一次调用，5200只票约 6-8 秒。
+
+    Returns: {symbol: {price, open, high, low, volume, amount, change_pct}}
+    """
+    from data_sources.tencent_quotes import tencent_quote
+    import pandas as pd
+
+    # 获取全市场股票列表
+    daily_dir = PROJECT_ROOT / "data" / "raw" / "daily"
+    all_syms = sorted(f.stem for f in daily_dir.glob("*.parquet")
+                      if not f.stem.startswith(("bj", "92")) and len(f.stem) == 6)
+
+    snap = {}
+    # tencent_quote 一次最多约 80 个，分批
+    batch_size = 80
+    for i in range(0, len(all_syms), batch_size):
+        batch = all_syms[i:i + batch_size]
+        try:
+            batch_data = tencent_quote(batch)
+            for code, q in batch_data.items():
+                price = q.get("price", 0) or 0
+                if price <= 0:
+                    continue
+                snap[code] = {
+                    "price": price,
+                    "open": q.get("open", price) or price,
+                    "high": q.get("high", price) or price,
+                    "low": q.get("low", price) or price,
+                    "volume": 0,  # 腾讯API不直接给日累计量，用成交额反推估算
+                    "amount": q.get("amount_wan", 0) * 10000 if q.get("amount_wan") else 0,
+                    "change_pct": q.get("change_pct", 0) or 0,
+                }
+        except Exception as e:
+            if i == 0:  # 第一批量失败才报错
+                logger.warning("Tencent quote batch %d failed: %s", i, e)
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    for s in snap.values():
+        s["date"] = today_str
+    return snap
+
+
 # ── Step 1: 全策略并行扫描 ──
 
-async def _step_scan_all() -> dict:
-    """用所有内置+自定义策略跑全市场扫描,每路取 Top-15。"""
+async def _step_scan_all(live_bars: dict = None) -> dict:
+    """用所有内置+自定义策略跑全市场扫描,每路取 Top-15。
+
+    live_bars: 实时快照 {symbol: {price,open,high,low,volume,date}}。
+    扫描时在每票数据内存中追加一行再评估策略，不写磁盘不碰 DuckDB。
+    """
     from server.services.strategy_scanner import scan_market
     from backtest.strategies.registry import list_all_strategies
+    import pandas as pd
+    import numpy as np
 
     all_modes = [s["id"] for s in (list_all_strategies().get("builtin", []) + list_all_strategies().get("user", []))]
-    unique = list(dict.fromkeys(all_modes))  # 去重保持顺序
+    unique = list(dict.fromkeys(all_modes))
 
-    all_candidates = {}
-    for mode in unique:
+    async def _scan_one(mode):
         try:
-            # 在同步模式下扫描(不用 ThreadPoolExecutor → asyncio.to_thread 既已存在)
-            result = await asyncio.to_thread(scan_market, mode=mode, exclude_st=True, min_price=1)
-            if result.get("matched", 0) > 0:
-                stocks = result.get("results", [])[:15]
-                for s in stocks:
-                    s["strategy_mode"] = mode
-                all_candidates[mode] = stocks
+            result = await asyncio.to_thread(
+                scan_market, mode=mode, exclude_st=True, min_price=1,
+                live_bars=live_bars)
+            # 标注实时数据 freshness
+            if result.get("results"):
+                for r in result["results"]:
+                    sym = r.get("symbol", "")
+                    bar = live_bars.get(sym, {}) if live_bars else {}
+                    if bar.get("price", 0) > 0:
+                        r["data_freshness"] = "live"
+            return mode, result
         except Exception as e:
             logger.warning("Scan %s failed: %s", mode, e)
+            return mode, None
+
+    # 并行跑全部策略
+    all_candidates = {}
+    tasks = [asyncio.create_task(_scan_one(m)) for m in unique]
+    for task in asyncio.as_completed(tasks):
+        mode, result = await task
+        if result and result.get("matched", 0) > 0:
+            stocks = result.get("results", [])[:15]
+            for s in stocks:
+                s["strategy_mode"] = mode
+            all_candidates[mode] = stocks
 
     # Merge into flat list, dedupe by symbol (保留最高 confidence)
     by_sym = {}
