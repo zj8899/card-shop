@@ -280,23 +280,40 @@ async def _step_news_filter(scan_result: dict) -> dict:
 async def _step_concept_filter(news_result: dict) -> dict:
     """确认候选票所属概念是否在扩散/高潮期,排除退潮概念票。"""
     candidates = news_result.get("kept", [])
+    before = len(candidates)
     try:
         from data_sources.ths_hot import get_topic_heatmap
         topic_map = get_topic_heatmap() or {}
-        ebb_concepts = set()  # 退潮概念
-        for topic, count in topic_map.items():
-            if count < 3:
-                ebb_concepts.add(topic)
+        # THS 热度图返回 {概念名: 涨停数}，涨停数>=3=活跃，>=5=高潮
+        hot_concepts = {t for t, cnt in topic_map.items() if cnt >= 3}
+        ebb_concepts = {t for t, cnt in topic_map.items() if cnt < 3}
 
-        kept = candidates  # 简化版:不退潮即可
-        # 标注概念热度
-        from server.services.concept_enricher import get_stock_concepts  # try if exists
-        for s in kept:
-            s["concept_phase"] = "active"
-            s["concept_heat"] = 5
-        return {"before_filter": len(candidates), "after_filter": len(kept), "ebb_concepts": list(ebb_concepts), "kept": kept}
-    except Exception:
-        return {"before_filter": len(candidates), "after_filter": len(candidates), "kept": candidates}
+        # 为每候选票标注概念热度
+        try:
+            from server.services.concept_enricher import ConceptEnricher
+            enricher = ConceptEnricher()
+            for s in candidates:
+                sym = s.get("symbol", "")
+                concepts = enricher.get_concepts(sym) if hasattr(enricher, 'get_concepts') else []
+                hot = [c for c in concepts if c in hot_concepts]
+                ebb = [c for c in concepts if c in ebb_concepts]
+                s["concept_phase"] = "hot" if hot else ("ebb" if ebb else "active")
+                s["concept_heat"] = len(hot)
+                s["concepts"] = concepts[:5]
+        except Exception:
+            for s in candidates:
+                s["concept_phase"] = "active"
+                s["concept_heat"] = 5
+
+        # 排除退潮概念票：如果所属概念在退潮且不在任何活跃概念中
+        kept = [s for s in candidates if s.get("concept_phase") != "ebb"]
+        logger.info("Concept filter: %d→%d (ebb=%d, hot=%d)", before, len(kept),
+                    len(ebb_concepts), len(hot_concepts))
+        return {"before_filter": before, "after_filter": len(kept),
+                "ebb_concepts": list(ebb_concepts), "kept": kept}
+    except Exception as e:
+        logger.debug("Concept filter bypassed: %s", e)
+        return {"before_filter": before, "after_filter": before, "kept": candidates}
 
 
 # ── Step 4: AI 综合研判 ──
@@ -338,9 +355,11 @@ async def _step_place_orders(ai_result: dict) -> dict:
         mode = s.get("strategy_mode", "")
         sym = s.get("symbol", "")
         name = s.get("name", sym)
-        # 取最新价(用东方财富快照)
+        # 取最新价+中文名(用东方财富快照)
         em = _fetch_em_stock(sym)
         price = em["price"] if em else s.get("price", 0)
+        if em and em.get("name") and len(em["name"]) > 1:
+            name = em["name"]  # 中文名优先
         if price <= 0:
             continue
         max_pct = POSITION_STYLES.get(mode, 0.20)

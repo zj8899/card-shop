@@ -615,6 +615,21 @@ async def get_auction_board():
         board["denied"] = denied
         board["data_quality"] = f"{len(interpretations)}/{len(board['stocks'])} 只有竞价数据"
 
+    # 4. 自动保存竞价数据到 live_engine（供模型训练使用）
+    try:
+        from server.live_engine import get_db as _ldb
+        ldb = _ldb()
+        for board in boards:
+            mode = board["mode"]
+            for x in board.get("interpretations", []):
+                ldb.execute(
+                    "INSERT OR REPLACE INTO auction_confirm(account_id,date,symbol,auction_price,gap_pct,vol_ratio,verdict,note) VALUES(?,?,?,?,?,?,?,?)",
+                    (mode, today_str, x["symbol"], x["price"], round(x["gap_pct"], 2),
+                     round(x["vol_ratio"], 2), x["verdict"], x.get("note", "")))
+        ldb.commit()
+    except Exception:
+        pass
+
     return _ok({
         "date": today_str,
         "scan_date": yesterday,
