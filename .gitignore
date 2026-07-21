@@ -13,3 +13,26 @@ venv/
 # IDE
 .vscode/
 .idea/
+
+# Data files (large binaries)
+data/raw/**/*.parquet
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Logs & journals
+logs/
+journals/
+
+# Environment secrets
+.env
+.env.local
+.env.production
+
+# Docker
+.docker/
+
+# 卡密商城 — 数据库含真实卡密，禁止提交
+data/card_shop.db
+data/card_shop.db.bak
