@@ -3,8 +3,10 @@
 认证 / 充值 / 商品 / 下单 / 管理后台
 """
 import hashlib
+import html
 import os
 import random
+import re
 import secrets
 import smtplib
 import sqlite3
@@ -14,6 +16,7 @@ import time
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from functools import wraps
 from pathlib import Path
 from typing import Optional
@@ -50,12 +53,8 @@ def _ensure_tables(conn: sqlite3.Connection):
             created_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
     """)
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, created_at)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_login_attempts_user ON login_attempts(username, created_at)"
-    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip, created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_login_attempts_user ON login_attempts(username, created_at)")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS email_verifications (
@@ -67,18 +66,133 @@ def _ensure_tables(conn: sqlite3.Connection):
             created_at TEXT DEFAULT (datetime('now', 'localtime'))
         )
     """)
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_email_ver ON email_verifications(email, created_at)"
-    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_email_ver ON email_verifications(email, created_at)")
 
-    # 迁移：给 users 表加 email 和 email_verified 字段（兼容旧库）
-    for col, dflt in [("email", "''"), ("email_verified", "0")]:
+    # ── 迁移：users 扩展字段 ──
+    for col, dflt in [("email", "''"), ("email_verified", "0"),
+                       ("vip_level", "'normal'"), ("invite_code", "''"),
+                       ("invited_by", "0"), ("total_spent", "0")]:
         try:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT {dflt}")
         except sqlite3.OperationalError:
-            pass  # 列已存在
+            pass
+
+    # ── 迁移：products 扩展字段 ──
+    try:
+        conn.execute("ALTER TABLE products ADD COLUMN description_html TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # ── 迁移：orders 扩展字段 ──
+    for col, dflt in [("promo_code", "''"), ("discount_amount", "0"), ("discount_detail", "''")]:
+        try:
+            conn.execute(f"ALTER TABLE orders ADD COLUMN {col} TEXT DEFAULT {dflt}")
+        except sqlite3.OperationalError:
+            pass
+
+    # ── 新表：VIP 等级 ──
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS vip_levels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level_name TEXT UNIQUE NOT NULL,
+            invite_count_required INTEGER DEFAULT 0,
+            badge TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+    # 种子数据
+    for lvl, req, badge in [("normal", 0, ""), ("vip1", 1, "🥉"), ("vip2", 5, "🥈"), ("svip", 20, "🥇")]:
+        conn.execute(
+            "INSERT OR IGNORE INTO vip_levels (level_name, invite_count_required, badge) VALUES (?, ?, ?)",
+            (lvl, req, badge))
+
+    # ── 新表：VIP 定价 ──
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS product_vip_prices (
+            product_id INTEGER REFERENCES products(id),
+            vip_level TEXT NOT NULL,
+            price REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (product_id, vip_level)
+        )
+    """)
+
+    # ── 新表：数量折扣 ──
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS quantity_discounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER REFERENCES products(id),
+            min_quantity INTEGER NOT NULL,
+            discount_percent REAL NOT NULL,
+            discount_mode TEXT DEFAULT 'single',
+            is_active INTEGER DEFAULT 1,
+            start_time TEXT DEFAULT '',
+            end_time TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+
+    # ── 新表：优惠码 ──
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            discount_type TEXT DEFAULT 'percent',
+            discount_value REAL NOT NULL,
+            target_product_id INTEGER DEFAULT 0,
+            target_vip_level TEXT DEFAULT '',
+            min_order_amount REAL DEFAULT 0,
+            max_uses INTEGER DEFAULT 0,
+            used_count INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            start_time TEXT DEFAULT '',
+            end_time TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+
+    # ── 新表：邀请码记录 ──
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS invite_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            owner_id INTEGER REFERENCES users(id),
+            used_count INTEGER DEFAULT 0,
+            max_uses INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+    """)
+
+    # 为没有 invite_code 的老用户自动生成
+    rows = conn.execute("SELECT id FROM users WHERE invite_code='' OR invite_code IS NULL").fetchall()
+    for r in rows:
+        code = f"INV{secrets.token_hex(6).upper()}"
+        conn.execute("UPDATE users SET invite_code=? WHERE id=?", (code, r["id"]))
+        conn.execute("INSERT OR IGNORE INTO invite_codes (code, owner_id) VALUES (?, ?)", (code, r["id"]))
 
     conn.commit()
+
+
+# ═══════════════════════════════════════════════════════════════
+# Security helpers
+# ═══════════════════════════════════════════════════════════════
+
+_ALLOWED_TAGS = {'p', 'br', 'b', 'i', 'u', 'strong', 'em', 'a', 'img', 'ul', 'ol', 'li', 'span', 'div', 'h3', 'h4'}
+_ALLOWED_ATTRS = {'href', 'src', 'alt', 'style', 'class', 'title', 'width', 'height'}
+
+def _sanitize_html(text: str) -> str:
+    """净化 HTML：只保留安全标签和属性，去除 script/iframe/事件处理等。"""
+    if not text or not text.strip():
+        return ""
+    # 1. 去掉危险标签
+    text = re.sub(r'<\s*(script|iframe|object|embed|form|input|link|meta|style|svg|math)[^>]*>.*?<\s*/\s*\1\s*>', '', text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'<\s*(script|iframe|object|embed|form|input|link|meta|style|svg|math)\b[^>]*/?>', '', text, flags=re.IGNORECASE)
+    # 2. 去掉 on* 事件属性
+    text = re.sub(r'\s+on\w+\s*=\s*"[^"]*"', '', text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+on\w+\s*=\s*'[^']*'", '', text, flags=re.IGNORECASE)
+    # 3. 去掉 javascript: / data: 协议
+    text = re.sub(r'''\b(href|src|action)\s*=\s*["']\s*(javascript|data|vbscript):''', r'\1="about:blank"', text, flags=re.IGNORECASE)
+    return text.strip()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -86,10 +200,27 @@ def _ensure_tables(conn: sqlite3.Connection):
 # ═══════════════════════════════════════════════════════════════
 
 def _hash(password: str, salt: str = None) -> tuple[str, str]:
+    """pbkdf2_hmac 密码哈希。不传 salt 则自动生成。返回 (hash_hex, salt_hex)"""
     if salt is None:
-        salt = secrets.token_hex(8)
-    h = hashlib.sha256((password + salt).encode()).hexdigest()
-    return h, salt
+        salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 200000, dklen=32)
+    return key.hex(), salt
+
+
+def _verify_password(password: str, stored_hash: str, stored_salt: str) -> bool:
+    """验证密码，兼容旧版 SHA256 哈希。"""
+    # 新版 pbkdf2：salt 是 32 字符 hex
+    if len(stored_salt) == 32:
+        key, _ = _hash(password, stored_salt)
+        return key == stored_hash
+    # 旧版 plain SHA256（salt 为 16 字符 hex）
+    h = hashlib.sha256((password + stored_salt).encode()).hexdigest()
+    return h == stored_hash
+
+
+def _needs_password_upgrade(salt: str) -> bool:
+    """检查是否旧版 SHA256 salt（16 字符），需要升级到 pbkdf2"""
+    return len(salt) == 16
 
 
 def get_user(request: Request) -> Optional[dict]:
@@ -131,6 +262,7 @@ class RegisterReq(BaseModel):
     username: str
     password: str
     email: str = ""
+    invite_code: str = ""
 
 class LoginReq(BaseModel):
     username: str
@@ -150,6 +282,7 @@ class RedeemReq(BaseModel):
 class CreateOrderReq(BaseModel):
     product_id: int
     quantity: int = 1
+    promo_code: str = ""
 
 class GenerateCardsReq(BaseModel):
     amount: float
@@ -160,15 +293,49 @@ class ProductReq(BaseModel):
     category_id: int = 0
     name: str
     description: str = ""
+    description_html: str = ""
     price: float = 0
 
 class ImportInventoryReq(BaseModel):
     product_id: int
-    data: str  # 每行: 账号----密码----恢复邮箱
+    data: str
 
 class UpdateConfigReq(BaseModel):
     key: str
     value: str
+
+# ── 新模型 ──
+class ValidatePromoReq(BaseModel):
+    code: str
+    order_total: float
+    product_id: int = 0
+
+class PromoCodeReq(BaseModel):
+    code: str
+    discount_type: str = "percent"
+    discount_value: float
+    target_product_id: int = 0
+    target_vip_level: str = ""
+    min_order_amount: float = 0
+    max_uses: int = 0
+    start_time: str = ""
+    end_time: str = ""
+
+class QtyDiscountReq(BaseModel):
+    product_id: int
+    min_quantity: int
+    discount_percent: float
+    discount_mode: str = "single"
+    start_time: str = ""
+    end_time: str = ""
+
+class VipPriceReq(BaseModel):
+    product_id: int
+    prices: dict  # {"vip1": 10.0, "vip2": 8.0, "svip": 5.0}
+
+class UserUpdateReq(BaseModel):
+    vip_level: str = ""
+    password: str = ""
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -183,6 +350,7 @@ USER_WINDOW_MIN = 30
 
 # 内存缓存：IP → (fail_count, first_fail_time, blocked_until)
 _ip_fail_cache: dict[str, tuple[int, float, float]] = {}
+_email_ip_cache: dict[str, tuple[int, float, float]] = {}
 _cache_lock = threading.Lock()
 
 
@@ -274,7 +442,7 @@ def _send_email(to_email: str, subject: str, html_body: str) -> str:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"{SITE_NAME} <{SMTP_USER}>"
+        msg["From"] = formataddr((SITE_NAME, SMTP_USER))
         msg["To"] = to_email
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
@@ -323,13 +491,27 @@ async def send_verification_code(req: SendCodeReq, request: Request):
         if elapsed < CODE_COOLDOWN_SEC:
             raise HTTPException(status_code=429, detail=f"请 {int(CODE_COOLDOWN_SEC - elapsed)} 秒后再试")
 
-    # IP 限制：每小时每 IP 最多发 10 次
+    # IP 限制：每 IP 每小时最多 5 次请求
     ip = request.client.host if request.client else "unknown"
+    with _cache_lock:
+        if ip in _email_ip_cache:
+            cnt, first, blocked = _email_ip_cache[ip]
+            if blocked > time.time():
+                remain = int(blocked - time.time())
+                raise HTTPException(status_code=429, detail=f"请求过于频繁，请 {remain} 秒后重试")
+            if time.time() - first > 3600:
+                del _email_ip_cache[ip]
+
+    now_ts = time.time()
+    with _cache_lock:
+        if ip in _email_ip_cache:
+            cnt, first, _ = _email_ip_cache[ip]
+            _email_ip_cache[ip] = (cnt + 1, first, now_ts + 3600 if cnt + 1 >= 5 else 0)
+        else:
+            _email_ip_cache[ip] = (1, now_ts, 0)
+
+    # 全局限流
     hour_ago = (datetime.now() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
-    ip_count = db.execute(
-        "SELECT COUNT(*) as cnt FROM email_verifications WHERE created_at > ?", (hour_ago,)
-    ).fetchone()  # 用 created_at 里的 ip 不方便，加个简单全局限制
-    # 简单全局限流
     total_recent = db.execute(
         "SELECT COUNT(*) as cnt FROM email_verifications WHERE created_at > ?", (hour_ago,)
     ).fetchone()
@@ -401,18 +583,31 @@ async def verify_email(req: VerifyEmailReq):
 # 认证
 # ═══════════════════════════════════════════════════════════════
 
+def _check_and_upgrade_vip(db: sqlite3.Connection, user_id: int):
+    """根据邀请人数自动升级 VIP"""
+    count = db.execute(
+        "SELECT COUNT(*) as cnt FROM users WHERE invited_by=?", (user_id,)
+    ).fetchone()["cnt"]
+    level = db.execute(
+        "SELECT level_name FROM vip_levels WHERE invite_count_required<=? "
+        "ORDER BY invite_count_required DESC LIMIT 1", (count,)
+    ).fetchone()
+    if level:
+        db.execute("UPDATE users SET vip_level=? WHERE id=?", (level["level_name"], user_id))
+
+
 @router.post("/shop/auth/register")
 async def auth_register(req: RegisterReq, request: Request):
     """用户注册 — 需先验证邮箱，注册时传入已验证的邮箱"""
     db = get_db()
     username = req.username.strip()
     email = req.email.strip().lower()
+    invite_code = req.invite_code.strip().upper() if req.invite_code else ""
 
     if len(username) < 2 or len(username) > 20:
         raise HTTPException(status_code=400, detail="用户名2-20个字符")
     if len(req.password) < 8:
         raise HTTPException(status_code=400, detail="密码至少8位")
-    # 密码复杂度：大写、小写、数字、符号，至少3种
     types = 0
     if any(c.islower() for c in req.password): types += 1
     if any(c.isupper() for c in req.password): types += 1
@@ -421,7 +616,6 @@ async def auth_register(req: RegisterReq, request: Request):
     if types < 3:
         raise HTTPException(status_code=400, detail="密码需包含大写字母、小写字母、数字、符号中至少3种")
 
-    # 检查邮箱是否已验证
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="请先验证邮箱")
 
@@ -432,12 +626,21 @@ async def auth_register(req: RegisterReq, request: Request):
     if not verified:
         raise HTTPException(status_code=400, detail="该邮箱未通过验证，请先获取验证码")
 
-    # 检查邮箱是否已被其他用户绑定
     existing_email = db.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
     if existing_email:
         raise HTTPException(status_code=400, detail="该邮箱已被注册")
 
-    # IP 注册限制
+    # 邀请码处理
+    invited_by_id = 0
+    if invite_code:
+        inviter = db.execute("SELECT id FROM users WHERE invite_code=?", (invite_code,)).fetchone()
+        if not inviter:
+            raise HTTPException(status_code=400, detail="邀请码无效")
+        if inviter["id"] == 0:  # admin 的邀请码，或者无效
+            pass
+        else:
+            invited_by_id = inviter["id"]
+
     ip = request.client.host if request.client else "unknown"
     today = datetime.now().strftime("%Y-%m-%d")
     reg_ip_rows = db.execute(
@@ -449,14 +652,26 @@ async def auth_register(req: RegisterReq, request: Request):
 
     ph, salt = _hash(req.password)
     try:
-        db.execute(
-            "INSERT INTO users (username, password_hash, salt, email, email_verified, balance) VALUES (?, ?, ?, ?, 1, 0)",
-            (username, ph, salt, email),
+        cursor = db.execute(
+            "INSERT INTO users (username, password_hash, salt, email, email_verified, balance, invited_by) "
+            "VALUES (?, ?, ?, ?, 1, 0, ?)",
+            (username, ph, salt, email, invited_by_id),
         )
-        db.commit()
+        user_id = cursor.lastrowid
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=400, detail="用户名已存在")
 
+    # 给新用户生成自己的邀请码
+    own_code = f"INV{secrets.token_hex(4).upper()}"
+    db.execute("UPDATE users SET invite_code=? WHERE id=?", (own_code, user_id))
+    db.execute("INSERT OR IGNORE INTO invite_codes (code, owner_id) VALUES (?, ?)", (own_code, user_id))
+
+    # 升级邀请人的 VIP
+    if invited_by_id:
+        db.execute("UPDATE invite_codes SET used_count=used_count+1 WHERE code=?", (invite_code,))
+        _check_and_upgrade_vip(db, invited_by_id)
+
+    db.commit()
     return {"status": "ok", "message": "注册成功，请登录"}
 
 
@@ -483,11 +698,15 @@ async def auth_login(req: LoginReq, request: Request):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     user = dict(row)
-    ph, _ = _hash(req.password, user["salt"])
-    if ph != user["password_hash"]:
+    if not _verify_password(req.password, user["password_hash"], user["salt"]):
         _record_login_attempt(db, ip, username, False)
         db.commit()
         raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    # 自动升级旧版 SHA256 → pbkdf2
+    if _needs_password_upgrade(user["salt"]):
+        ph_new, salt_new = _hash(req.password)
+        db.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (ph_new, salt_new, user["id"]))
 
     # 3. 登录成功
     _record_login_attempt(db, ip, username, True)
@@ -503,6 +722,9 @@ async def auth_login(req: LoginReq, request: Request):
     db.execute("DELETE FROM user_tokens WHERE expires_at < datetime('now', 'localtime')")
     db.commit()
 
+    invite_count = db.execute(
+        "SELECT COUNT(*) as cnt FROM users WHERE invited_by=?", (user["id"],)
+    ).fetchone()["cnt"]
     return {
         "status": "ok",
         "token": token,
@@ -512,6 +734,9 @@ async def auth_login(req: LoginReq, request: Request):
             "email": user.get("email", ""),
             "balance": user["balance"],
             "is_admin": bool(user["is_admin"]),
+            "vip_level": user.get("vip_level", "normal"),
+            "invite_code": user.get("invite_code", ""),
+            "invite_count": invite_count,
         },
     }
 
@@ -520,6 +745,10 @@ async def auth_login(req: LoginReq, request: Request):
 async def auth_me(request: Request):
     """获取当前用户信息"""
     user = require_user(request)
+    db = get_db()
+    invite_count = db.execute(
+        "SELECT COUNT(*) as cnt FROM users WHERE invited_by=?", (user["id"],)
+    ).fetchone()["cnt"]
     return {
         "status": "ok",
         "user": {
@@ -528,6 +757,10 @@ async def auth_me(request: Request):
             "email": user.get("email", ""),
             "balance": user["balance"],
             "is_admin": bool(user["is_admin"]),
+            "vip_level": user.get("vip_level", "normal"),
+            "invite_code": user.get("invite_code", ""),
+            "invite_count": invite_count,
+            "total_spent": float(user.get("total_spent", 0)),
         },
     }
 
@@ -543,8 +776,7 @@ async def change_password(req: ChangePasswordReq, request: Request):
     user = require_user(request)
     db = get_db()
 
-    ph_check, _ = _hash(req.old_password, user["salt"])
-    if ph_check != user["password_hash"]:
+    if not _verify_password(req.old_password, user["password_hash"], user["salt"]):
         raise HTTPException(status_code=400, detail="原密码错误")
 
     if len(req.new_password) < 8:
@@ -676,113 +908,212 @@ async def list_categories():
 
 @router.post("/shop/orders")
 async def create_order(req: CreateOrderReq, request: Request):
-    """下单购买（自动扣余额 + 自动发货）"""
+    """下单购买 — VIP固定价 / 普通用户可叠加折扣+优惠码"""
     user = require_user(request)
     db = get_db()
+    db.execute("BEGIN IMMEDIATE")
+    try:
 
-    # 查商品
-    product = db.execute(
-        "SELECT * FROM products WHERE id=? AND is_active=1", (req.product_id,)
-    ).fetchone()
-    if not product:
-        raise HTTPException(status_code=404, detail="商品不存在或已下架")
-    if req.quantity < 1:
-        raise HTTPException(status_code=400, detail="购买数量至少为1")
-
-    # 查库存
-    available = db.execute(
-        "SELECT COUNT(*) as cnt FROM inventory WHERE product_id=? AND status='available'",
-        (req.product_id,),
-    ).fetchone()["cnt"]
-    if available < req.quantity:
-        raise HTTPException(status_code=400, detail=f"库存不足，仅剩 {available} 件")
-
-    total = product["price"] * req.quantity
-
-    # 重新查用户余额
-    user_row = db.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone()
-    if user_row["balance"] < total:
-        raise HTTPException(
-            status_code=400,
-            detail=f"余额不足，需要 {total:.2f} 元，当前余额 {user_row['balance']:.2f} 元",
-        )
-
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # 扣余额
-    db.execute("UPDATE users SET balance=balance-? WHERE id=?", (total, user["id"]))
-
-    # 锁定库存
-    items = db.execute(
-        "SELECT id FROM inventory WHERE product_id=? AND status='available' ORDER BY id LIMIT ?",
-        (req.product_id, req.quantity),
-    ).fetchall()
-
-    # 创建订单
-    cursor = db.execute(
-        """INSERT INTO orders (user_id, product_id, product_name, quantity, unit_price, total_price, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'paid', ?)""",
-        (user["id"], product["id"], product["name"], req.quantity,
-         product["price"], total, now),
-    )
-    order_id = cursor.lastrowid
-
-    # 发货：更新库存 + 创建明细
-    delivered = []
-    for item in items:
-        db.execute(
-            "UPDATE inventory SET status='sold', order_id=?, sold_at=? WHERE id=?",
-            (order_id, now, item["id"]),
-        )
-        db.execute(
-            "INSERT INTO order_items (order_id, inventory_id) VALUES (?, ?)",
-            (order_id, item["id"]),
-        )
-        inv = db.execute(
-            "SELECT account, password, recovery_email FROM inventory WHERE id=?",
-            (item["id"],),
+        product = db.execute(
+            "SELECT * FROM products WHERE id=? AND is_active=1", (req.product_id,)
         ).fetchone()
-        delivered.append(dict(inv))
+        if not product:
+            raise HTTPException(status_code=404, detail="商品不存在或已下架")
+        if req.quantity < 1:
+            raise HTTPException(status_code=400, detail="购买数量至少为1")
 
-    # 更新商品库存计数
-    db.execute(
-        "UPDATE products SET stock=(SELECT COUNT(*) FROM inventory WHERE product_id=? AND status='available') WHERE id=?",
-        (product["id"], product["id"]),
-    )
-    db.commit()
+        available = db.execute(
+            "SELECT COUNT(*) as cnt FROM inventory WHERE product_id=? AND status='available'",
+            (req.product_id,),
+        ).fetchone()["cnt"]
+        if available < req.quantity:
+            raise HTTPException(status_code=400, detail=f"库存不足，仅剩 {available} 件")
 
-    new_balance = db.execute(
-        "SELECT balance FROM users WHERE id=?", (user["id"],)
-    ).fetchone()["balance"]
+        user_row = db.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone()
+        vip_level = user_row.get("vip_level", "normal")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        discount_detail = []
+        unit_price = product["price"]
+        total_discount = 0.0
 
-    return {
-        "status": "ok",
-        "message": f"购买成功！共 {req.quantity} 件，消费 {total:.2f} 元",
-        "order": {
-            "id": order_id,
-            "product_name": product["name"],
-            "quantity": req.quantity,
-            "total_price": total,
-            "created_at": now,
-        },
-        "cards": delivered,  # 返回卡密！
-        "balance": new_balance,
-    }
+        # ── VIP 用户：固定价，无折扣 ──
+        if vip_level and vip_level != "normal":
+            vip_price_row = db.execute(
+                "SELECT price FROM product_vip_prices WHERE product_id=? AND vip_level=?",
+                (req.product_id, vip_level)
+            ).fetchone()
+            if vip_price_row and vip_price_row["price"] > 0:
+                unit_price = vip_price_row["price"]
+                discount_detail.append({"type": "vip", "level": vip_level, "unit_price": unit_price})
+            total = unit_price * req.quantity
+        else:
+            total = product["price"] * req.quantity
+
+            # 1. 数量折扣
+            qty_row_single = db.execute(
+                """SELECT * FROM quantity_discounts
+                   WHERE product_id=? AND is_active=1 AND discount_mode='single'
+                   AND min_quantity<=? AND (start_time='' OR start_time<=?)
+                   AND (end_time='' OR end_time>=?)
+                   ORDER BY min_quantity DESC LIMIT 1""",
+                (req.product_id, req.quantity, now, now)
+            ).fetchone()
+            hist_qty = db.execute(
+                "SELECT COALESCE(SUM(quantity),0) as total FROM orders WHERE user_id=? AND product_id=?",
+                (user["id"], req.product_id)
+            ).fetchone()["total"]
+            total_qty = hist_qty + req.quantity
+            qty_row_cumul = db.execute(
+                """SELECT * FROM quantity_discounts
+                   WHERE product_id=? AND is_active=1 AND discount_mode='cumulative'
+                   AND min_quantity<=? AND (start_time='' OR start_time<=?)
+                   AND (end_time='' OR end_time>=?)
+                   ORDER BY min_quantity DESC LIMIT 1""",
+                (req.product_id, total_qty, now, now)
+            ).fetchone()
+
+            best_qty_discount = 0.0
+            qty_desc = ""
+            if qty_row_single and qty_row_single["discount_percent"] > best_qty_discount:
+                best_qty_discount = qty_row_single["discount_percent"]
+                qty_desc = f"单次满{qty_row_single['min_quantity']}件享{best_qty_discount}%折扣"
+            if qty_row_cumul and qty_row_cumul["discount_percent"] > best_qty_discount:
+                best_qty_discount = qty_row_cumul["discount_percent"]
+                qty_desc = f"累计满{qty_row_cumul['min_quantity']}件享{best_qty_discount}%折扣"
+
+            if best_qty_discount > 0:
+                qty_discount_amount = total * best_qty_discount / 100.0
+                total -= qty_discount_amount
+                total_discount += qty_discount_amount
+                discount_detail.append({"type": "qty_discount", "percent": best_qty_discount,
+                                         "amount": round(qty_discount_amount, 2), "desc": qty_desc})
+
+            # 2. 优惠码
+            promo_code_used = ""
+            if req.promo_code:
+                promo = db.execute(
+                    """SELECT * FROM promo_codes WHERE code=? AND is_active=1
+                       AND (start_time='' OR start_time<=?) AND (end_time='' OR end_time>=?)""",
+                    (req.promo_code.strip().upper(), now, now)
+                ).fetchone()
+                if not promo:
+                    raise HTTPException(status_code=400, detail="优惠码无效或已过期")
+                if promo["max_uses"] > 0 and promo["used_count"] >= promo["max_uses"]:
+                    raise HTTPException(status_code=400, detail="优惠码已被用完")
+                if promo["target_product_id"] > 0 and promo["target_product_id"] != req.product_id:
+                    raise HTTPException(status_code=400, detail="此优惠码不适用于该商品")
+                if total < promo["min_order_amount"]:
+                    raise HTTPException(status_code=400,
+                        detail=f"订单金额需满 {promo['min_order_amount']:.2f} 元才能使用此优惠码")
+                if promo["discount_type"] == "percent":
+                    promo_amount = total * promo["discount_value"] / 100.0
+                else:
+                    promo_amount = min(promo["discount_value"], total)
+                total -= promo_amount
+                total_discount += promo_amount
+                discount_detail.append({"type": "promo", "code": promo["code"],
+                                         "amount": round(promo_amount, 2)})
+                db.execute("UPDATE promo_codes SET used_count=used_count+1 WHERE id=?", (promo["id"],))
+                promo_code_used = promo["code"]
+
+        total = round(total, 2)
+        if total < 0:
+            total = 0
+
+        if user_row["balance"] < total:
+            raise HTTPException(status_code=400,
+                detail=f"余额不足，需要 {total:.2f} 元，当前余额 {user_row['balance']:.2f} 元")
+
+        # 扣余额
+        db.execute("UPDATE users SET balance=balance-?, total_spent=total_spent+? WHERE id=?",
+                   (total, total, user["id"]))
+
+        # 锁库存（BEGIN IMMEDIATE 已锁定写操作，安全性由 SQLite 保证）
+        items = db.execute(
+            "SELECT id FROM inventory WHERE product_id=? AND status='available' ORDER BY id LIMIT ?",
+            (req.product_id, req.quantity),
+        ).fetchall()
+        if len(items) < req.quantity:
+            raise HTTPException(status_code=400, detail="库存不足（并发冲突），请重试")
+
+        # 创建订单
+        import json as _json
+        detail_json = _json.dumps(discount_detail, ensure_ascii=False) if discount_detail else ""
+        cursor = db.execute(
+            """INSERT INTO orders (user_id, product_id, product_name, quantity, unit_price, total_price,
+               discount_amount, discount_detail, promo_code, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?)""",
+            (user["id"], product["id"], product["name"], req.quantity,
+             unit_price, total, total_discount, detail_json, promo_code_used, now),
+        )
+        order_id = cursor.lastrowid
+
+        # 发货
+        delivered = []
+        for item in items:
+            db.execute("UPDATE inventory SET status='sold', order_id=?, sold_at=? WHERE id=?",
+                       (order_id, now, item["id"]))
+            db.execute("INSERT INTO order_items (order_id, inventory_id) VALUES (?, ?)",
+                       (order_id, item["id"]))
+            inv = db.execute(
+                "SELECT account, password, recovery_email FROM inventory WHERE id=?", (item["id"],)
+            ).fetchone()
+            delivered.append(dict(inv))
+
+        db.execute(
+            "UPDATE products SET stock=(SELECT COUNT(*) FROM inventory WHERE product_id=? AND status='available') WHERE id=?",
+            (product["id"], product["id"]),
+        )
+        db.commit()
+
+        new_balance = db.execute("SELECT balance FROM users WHERE id=?", (user["id"],)).fetchone()["balance"]
+
+        return {
+            "status": "ok",
+            "message": f"购买成功！共 {req.quantity} 件，消费 {total:.2f} 元",
+            "order": {"id": order_id, "product_name": product["name"], "quantity": req.quantity,
+                       "unit_price": unit_price, "total_price": total, "discount": total_discount,
+                       "discount_detail": discount_detail, "created_at": now},
+            "cards": delivered,
+            "balance": new_balance,
+        }
+    except HTTPException:
+        db.execute("ROLLBACK")
+        raise
+    except Exception:
+        db.execute("ROLLBACK")
+        raise
 
 
 @router.get("/shop/orders")
-async def list_my_orders(request: Request):
-    """我的订单"""
-    user = require_user(request)
+async def list_my_orders(request: Request, user_id: int = 0):
+    """我的订单 / admin可查任意用户"""
+    req_user = require_user(request)
     db = get_db()
+    uid = user_id if (user_id > 0 and req_user.get("is_admin")) else req_user["id"]
     rows = db.execute(
         """SELECT o.*,
                   (SELECT COUNT(*) FROM order_items WHERE order_id=o.id) as item_count
            FROM orders o WHERE o.user_id=?
-           ORDER BY o.created_at DESC LIMIT 100""",
-        (user["id"],),
+           ORDER BY o.created_at DESC LIMIT 100""", (uid,)
     ).fetchall()
-    return {"status": "ok", "orders": [dict(r) for r in rows]}
+    orders = []
+    for row in rows:
+        order = dict(row)
+        items = db.execute(
+            """SELECT i.account, i.password, i.recovery_email
+               FROM order_items oi JOIN inventory i ON oi.inventory_id=i.id
+               WHERE oi.order_id=?""", (row["id"],)
+        ).fetchall()
+        order["cards"] = [dict(it) for it in items]
+        if order.get("discount_detail"):
+            import json as _json
+            try:
+                order["discount_detail"] = _json.loads(order["discount_detail"])
+            except:
+                pass
+        orders.append(order)
+    return {"status": "ok", "orders": orders}
 
 
 @router.get("/shop/orders/{order_id}")
@@ -879,8 +1210,8 @@ async def admin_generate_cards(req: GenerateCardsReq, request: Request):
     db = get_db()
     cards = []
     for i in range(req.count):
-        card_no = f"C{secrets.token_hex(4).upper()}"
-        card_pw = secrets.token_hex(4).upper()
+        card_no = f"C{secrets.token_hex(8).upper()}"
+        card_pw = secrets.token_hex(8).upper()
         db.execute(
             "INSERT INTO recharge_cards (card_no, card_password, amount, status, batch) VALUES (?, ?, ?, 'unused', ?)",
             (card_no, card_pw, req.amount, req.batch or ""),
@@ -982,8 +1313,9 @@ async def admin_create_product(req: ProductReq, request: Request):
     require_admin(request)
     db = get_db()
     cursor = db.execute(
-        "INSERT INTO products (category_id, name, description, price, is_active) VALUES (?, ?, ?, ?, 1)",
-        (req.category_id if req.category_id > 0 else None, req.name, req.description, req.price),
+        "INSERT INTO products (category_id, name, description, description_html, price, is_active) VALUES (?, ?, ?, ?, ?, 1)",
+        (req.category_id if req.category_id > 0 else None, req.name, req.description,
+         _sanitize_html(req.description_html), req.price),
     )
     db.commit()
     return {"status": "ok", "product_id": cursor.lastrowid, "message": "商品已创建"}
@@ -995,8 +1327,9 @@ async def admin_update_product(product_id: int, req: ProductReq, request: Reques
     require_admin(request)
     db = get_db()
     db.execute(
-        "UPDATE products SET category_id=?, name=?, description=?, price=? WHERE id=?",
-        (req.category_id if req.category_id > 0 else None, req.name, req.description, req.price, product_id),
+        "UPDATE products SET category_id=?, name=?, description=?, description_html=?, price=? WHERE id=?",
+        (req.category_id if req.category_id > 0 else None, req.name, req.description,
+         _sanitize_html(req.description_html), req.price, product_id),
     )
     db.execute(
         "UPDATE products SET stock=(SELECT COUNT(*) FROM inventory WHERE product_id=? AND status='available') WHERE id=?",
@@ -1093,6 +1426,258 @@ async def admin_list_inventory(
     ).fetchall()
 
     return {"status": "ok", "total": total, "page": page, "items": [dict(r) for r in rows]}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 优惠码
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/shop/promo/validate")
+async def validate_promo(req: ValidatePromoReq):
+    """验证优惠码"""
+    db = get_db()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    promo = db.execute(
+        """SELECT * FROM promo_codes WHERE code=? AND is_active=1
+           AND (start_time='' OR start_time<=?) AND (end_time='' OR end_time>=?)""",
+        (req.code.strip().upper(), now, now)
+    ).fetchone()
+    if not promo:
+        raise HTTPException(status_code=400, detail="优惠码无效或已过期")
+    if promo["max_uses"] > 0 and promo["used_count"] >= promo["max_uses"]:
+        raise HTTPException(status_code=400, detail="优惠码已被用完")
+    if promo["target_product_id"] > 0 and promo["target_product_id"] != req.product_id:
+        raise HTTPException(status_code=400, detail="此优惠码不适用于该商品")
+    if req.order_total < promo["min_order_amount"]:
+        raise HTTPException(status_code=400,
+            detail=f"订单金额需满 {promo['min_order_amount']:.2f} 元")
+    if promo["discount_type"] == "percent":
+        discount = round(req.order_total * promo["discount_value"] / 100.0, 2)
+    else:
+        discount = min(promo["discount_value"], req.order_total)
+    return {"status": "ok", "code": promo["code"], "discount_type": promo["discount_type"],
+            "discount_value": promo["discount_value"], "discount_amount": discount,
+            "final_total": round(req.order_total - discount, 2)}
+
+
+@router.get("/shop/admin/promo_codes")
+async def admin_list_promo_codes(request: Request):
+    require_admin(request)
+    db = get_db()
+    rows = db.execute("SELECT * FROM promo_codes ORDER BY created_at DESC").fetchall()
+    return {"status": "ok", "promo_codes": [dict(r) for r in rows]}
+
+
+@router.post("/shop/admin/promo_codes")
+async def admin_create_promo_code(req: PromoCodeReq, request: Request):
+    require_admin(request)
+    db = get_db()
+    try:
+        db.execute(
+            """INSERT INTO promo_codes (code, discount_type, discount_value, target_product_id,
+               target_vip_level, min_order_amount, max_uses, start_time, end_time)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (req.code.strip().upper(), req.discount_type, req.discount_value,
+             req.target_product_id, req.target_vip_level, req.min_order_amount,
+             req.max_uses, req.start_time, req.end_time))
+        db.commit()
+        return {"status": "ok", "message": "优惠码已创建"}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="优惠码已存在")
+
+
+@router.put("/shop/admin/promo_codes/{code_id}")
+async def admin_update_promo_code(code_id: int, req: PromoCodeReq, request: Request):
+    require_admin(request)
+    db = get_db()
+    db.execute(
+        """UPDATE promo_codes SET code=?, discount_type=?, discount_value=?, target_product_id=?,
+           target_vip_level=?, min_order_amount=?, max_uses=?, start_time=?, end_time=?
+           WHERE id=?""",
+        (req.code.strip().upper(), req.discount_type, req.discount_value,
+         req.target_product_id, req.target_vip_level, req.min_order_amount,
+         req.max_uses, req.start_time, req.end_time, code_id))
+    db.commit()
+    return {"status": "ok", "message": "优惠码已更新"}
+
+
+@router.delete("/shop/admin/promo_codes/{code_id}")
+async def admin_delete_promo_code(code_id: int, request: Request):
+    require_admin(request)
+    db = get_db()
+    db.execute("UPDATE promo_codes SET is_active=0 WHERE id=?", (code_id,))
+    db.commit()
+    return {"status": "ok", "message": "优惠码已停用"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 数量折扣
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/shop/admin/quantity_discounts")
+async def admin_list_qty_discounts(request: Request, product_id: int = 0):
+    require_admin(request)
+    db = get_db()
+    if product_id > 0:
+        rows = db.execute(
+            """SELECT qd.*, p.name as product_name FROM quantity_discounts qd
+               JOIN products p ON qd.product_id=p.id WHERE qd.product_id=? ORDER BY qd.min_quantity""",
+            (product_id,)).fetchall()
+    else:
+        rows = db.execute(
+            """SELECT qd.*, p.name as product_name FROM quantity_discounts qd
+               JOIN products p ON qd.product_id=p.id ORDER BY p.id, qd.min_quantity""").fetchall()
+    return {"status": "ok", "discounts": [dict(r) for r in rows]}
+
+
+@router.post("/shop/admin/quantity_discounts")
+async def admin_create_qty_discount(req: QtyDiscountReq, request: Request):
+    require_admin(request)
+    db = get_db()
+    db.execute(
+        """INSERT INTO quantity_discounts (product_id, min_quantity, discount_percent, discount_mode, start_time, end_time)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (req.product_id, req.min_quantity, req.discount_percent, req.discount_mode,
+         req.start_time, req.end_time))
+    db.commit()
+    return {"status": "ok", "message": "数量折扣规则已创建"}
+
+
+@router.put("/shop/admin/quantity_discounts/{discount_id}")
+async def admin_update_qty_discount(discount_id: int, req: QtyDiscountReq, request: Request):
+    require_admin(request)
+    db = get_db()
+    db.execute(
+        """UPDATE quantity_discounts SET product_id=?, min_quantity=?, discount_percent=?,
+           discount_mode=?, start_time=?, end_time=? WHERE id=?""",
+        (req.product_id, req.min_quantity, req.discount_percent, req.discount_mode,
+         req.start_time, req.end_time, discount_id))
+    db.commit()
+    return {"status": "ok", "message": "数量折扣已更新"}
+
+
+@router.delete("/shop/admin/quantity_discounts/{discount_id}")
+async def admin_delete_qty_discount(discount_id: int, request: Request):
+    require_admin(request)
+    db = get_db()
+    db.execute("DELETE FROM quantity_discounts WHERE id=?", (discount_id,))
+    db.commit()
+    return {"status": "ok", "message": "已删除"}
+
+
+@router.get("/shop/products/{product_id}/discount")
+async def get_product_discounts(product_id: int, quantity: int = 1, request: Request = None):
+    """查商品可用折扣（含单次+累计）"""
+    db = get_db()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 单次
+    single = db.execute(
+        """SELECT * FROM quantity_discounts WHERE product_id=? AND is_active=1 AND discount_mode='single'
+           AND min_quantity<=? AND (start_time='' OR start_time<=?) AND (end_time='' OR end_time>=?)
+           ORDER BY min_quantity DESC LIMIT 1""",
+        (product_id, quantity, now, now)).fetchone()
+    # 累计 - 需要用户ID
+    cumulative = None
+    if request:
+        user = get_user(request)
+        if user:
+            hist = db.execute(
+                "SELECT COALESCE(SUM(quantity),0) as total FROM orders WHERE user_id=? AND product_id=?",
+                (user["id"], product_id)).fetchone()["total"]
+            cumulative = db.execute(
+                """SELECT * FROM quantity_discounts WHERE product_id=? AND is_active=1 AND discount_mode='cumulative'
+                   AND min_quantity<=? AND (start_time='' OR start_time<=?) AND (end_time='' OR end_time>=?)
+                   ORDER BY min_quantity DESC LIMIT 1""",
+                (product_id, hist + quantity, now, now)).fetchone()
+    return {"status": "ok", "single": dict(single) if single else None,
+            "cumulative": dict(cumulative) if cumulative else None}
+
+
+# ═══════════════════════════════════════════════════════════════
+# VIP 定价
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/shop/admin/vip_prices")
+async def admin_get_vip_prices(request: Request, product_id: int = 0):
+    require_admin(request)
+    db = get_db()
+    if product_id > 0:
+        rows = db.execute(
+            "SELECT * FROM product_vip_prices WHERE product_id=?", (product_id,)).fetchall()
+    else:
+        rows = db.execute(
+            """SELECT vp.*, p.name as product_name FROM product_vip_prices vp
+               JOIN products p ON vp.product_id=p.id ORDER BY p.id, vp.vip_level""").fetchall()
+    return {"status": "ok", "prices": [dict(r) for r in rows]}
+
+
+@router.put("/shop/admin/vip_prices")
+async def admin_set_vip_prices(req: VipPriceReq, request: Request):
+    require_admin(request)
+    db = get_db()
+    for level, price in req.prices.items():
+        db.execute(
+            """INSERT OR REPLACE INTO product_vip_prices (product_id, vip_level, price)
+               VALUES (?, ?, ?)""", (req.product_id, level, float(price)))
+    db.commit()
+    return {"status": "ok", "message": "VIP定价已保存"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 用户管理 (admin)
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/shop/admin/users")
+async def admin_list_users(request: Request):
+    require_admin(request)
+    db = get_db()
+    rows = db.execute(
+        """SELECT u.*,
+                  (SELECT COUNT(*) FROM users WHERE invited_by=u.id) as invite_count,
+                  (SELECT COUNT(*) FROM orders WHERE user_id=u.id) as order_count,
+                  (SELECT COALESCE(SUM(total_price),0) FROM orders WHERE user_id=u.id) as total_spent_calc
+           FROM users u ORDER BY u.created_at DESC LIMIT 200""").fetchall()
+    return {"status": "ok", "users": [dict(r) for r in rows]}
+
+
+@router.get("/shop/admin/users/{user_id}")
+async def admin_get_user(user_id: int, request: Request):
+    require_admin(request)
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    u = dict(user)
+    u["invite_count"] = db.execute(
+        "SELECT COUNT(*) as cnt FROM users WHERE invited_by=?", (user_id,)).fetchone()["cnt"]
+    return {"status": "ok", "user": u}
+
+
+@router.put("/shop/admin/users/{user_id}")
+async def admin_update_user(user_id: int, req: UserUpdateReq, request: Request):
+    require_admin(request)
+    db = get_db()
+    if req.vip_level:
+        db.execute("UPDATE users SET vip_level=? WHERE id=?", (req.vip_level, user_id))
+    if req.password:
+        ph, salt = _hash(req.password)
+        db.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (ph, salt, user_id))
+        db.execute("DELETE FROM user_tokens WHERE user_id=?", (user_id,))
+    db.commit()
+    return {"status": "ok", "message": "用户信息已更新"}
+
+
+@router.post("/shop/admin/users/{user_id}/reset_password")
+async def admin_reset_password(user_id: int, request: Request):
+    """管理员重置用户密码为随机8位"""
+    require_admin(request)
+    db = get_db()
+    new_pw = secrets.token_hex(8)  # 16位随机
+    ph, salt = _hash(new_pw)
+    db.execute("UPDATE users SET password_hash=?, salt=? WHERE id=?", (ph, salt, user_id))
+    db.execute("DELETE FROM user_tokens WHERE user_id=?", (user_id,))
+    db.commit()
+    return {"status": "ok", "message": f"密码已重置", "new_password": new_pw}
 
 
 # ═══════════════════════════════════════════════════════════════

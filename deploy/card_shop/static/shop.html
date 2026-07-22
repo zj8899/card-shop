@@ -90,6 +90,27 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
 .card-detail .field { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; font-family: monospace; }
 .card-detail .field .val { color: #3fb950; }
 
+/* VIP badges */
+.vip-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; margin-left: 4px; }
+.vip-normal { background: #21262d; color: #8b949e; }
+.vip-vip1 { background: #3a2e1b; color: #cd7f32; }
+.vip-vip2 { background: #1a2332; color: #c0c0c0; }
+.vip-svip { background: #3a351b; color: #ffd700; }
+
+/* Discount info */
+.discount-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #3a351b; color: #d2991d; margin-top: 4px; }
+.discount-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+
+/* Card detail for orders */
+.order-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; margin-bottom: 12px; cursor: pointer; }
+.order-card:hover { border-color: #58a6ff; }
+.order-card .order-header { display: flex; justify-content: space-between; align-items: center; }
+.order-cards { margin-top: 12px; border-top: 1px solid #21262d; padding-top: 12px; }
+.order-cards.hidden { display: none; }
+
+/* Settings */
+.setting-row { display: flex; gap: 8px; align-items: flex-end; }
+
 /* Utilities */
 .hidden { display: none !important; }
 .text-center { text-align: center; }
@@ -119,10 +140,15 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
   <button class="nav-btn active" data-tab="home">🏠 首页</button>
   <button class="nav-btn" data-tab="orders">📦 我的订单</button>
   <button class="nav-btn" data-tab="records">📋 记录</button>
+  <button class="nav-btn" data-tab="settings">⚙️ 设置</button>
   <button class="nav-btn admin-only hidden" data-tab="admin-dashboard">📊 仪表盘</button>
   <button class="nav-btn admin-only hidden" data-tab="admin-cards">💳 充值卡</button>
-  <button class="nav-btn admin-only hidden" data-tab="admin-products">📦 商品管理</button>
-  <button class="nav-btn admin-only hidden" data-tab="admin-inventory">🗄️ 库存管理</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-products">📦 商品</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-inventory">🗄️ 库存</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-users">👥 用户</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-promo">🏷️ 优惠码</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-discounts">📉 折扣</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-vip">👑 VIP定价</button>
   <button class="nav-btn" onclick="logout()" style="margin-left:auto;">🚪 退出</button>
 </div>
 
@@ -166,6 +192,22 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
   </div>
 </div>
 
+<!-- Password Modal -->
+<div class="modal-overlay" id="pwdModal">
+  <div class="modal-box">
+    <h3>🔑 修改密码</h3>
+    <div id="pwdMsg"></div>
+    <div class="form-group"><label>原密码</label><input type="password" id="oldPwd"></div>
+    <div class="form-group"><label>新密码</label><input type="password" id="newPwd1" oninput="checkPwdStr()"></div>
+    <div class="form-group"><label>确认新密码</label><input type="password" id="newPwd2" oninput="checkPwdStr()"></div>
+    <span id="pwdHint" style="font-size:11px;color:#8b949e;display:block;margin-top:-10px;margin-bottom:8px;"></span>
+    <div class="modal-actions">
+      <button class="btn" onclick="closePwd()">取消</button>
+      <button class="btn btn-primary" onclick="doChangePwd()">确认修改</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════
 // State
@@ -173,6 +215,8 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
 let currentUser = null;
 let currentTab = 'home';
 let buyProduct = null;
+let buyPromoCode = null;
+let buyPromoDiscount = 0;
 
 const API = (path, opts = {}) => {
   const headers = {'Content-Type': 'application/json'};
@@ -180,6 +224,9 @@ const API = (path, opts = {}) => {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   return fetch('/api' + path, {...opts, headers: {...headers, ...(opts.headers||{})}}).then(r => r.json());
 };
+
+const VIP_BADGES = {normal:'', vip1:'🥉', vip2:'🥈', svip:'🥇'};
+const VIP_CLASSES = {normal:'vip-normal', vip1:'vip-vip1', vip2:'vip-vip2', svip:'vip-svip'};
 
 // ═══════════════════════════════════════════════════
 // Init
@@ -222,39 +269,60 @@ function showAuth() {
 let authMode = 'login';
 let verifiedEmail = '';
 let sendCooldown = 0;
+let sendCooldownTimer = null;
 
 function toggleAuth(mode) {
+  // 只有真正切换模式时才重置验证状态
+  const isSwitching = (authMode !== mode);
+  if (isSwitching) {
+    verifiedEmail = '';
+  }
   authMode = mode;
-  verifiedEmail = '';
   document.getElementById('tabLogin').className = mode === 'login' ? 'btn btn-primary' : 'btn';
   document.getElementById('tabReg').className = mode === 'register' ? 'btn btn-primary' : 'btn';
   document.getElementById('authMsg').innerHTML = '';
 
   if (mode === 'login') {
     document.getElementById('authForm').innerHTML = `
-      <div class="form-group"><label>用户名</label><input type="text" id="authUser" placeholder="输入用户名" onkeydown="if(event.key==='Enter')doAuth()"></div>
-      <div class="form-group"><label>密码</label><input type="password" id="authPass" placeholder="输入密码" onkeydown="if(event.key==='Enter')doAuth()"></div>
+      <div class="form-group"><label style="display:block;">用户名</label><input type="text" id="authUser" placeholder="输入用户名" autocomplete="username" onkeydown="if(event.key==='Enter')doAuth()"></div>
+      <div class="form-group"><label style="display:block;">密码</label><input type="password" id="authPass" placeholder="输入密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()"></div>
       <button class="btn btn-primary btn-block" onclick="doAuth()">登录</button>`;
   } else {
+    // 保留已验证邮箱的视觉提示
+    const emailVerifiedHint = verifiedEmail
+      ? '<span id="emailVerifyHint" style="font-size:12px;display:block;margin-top:-4px;margin-bottom:8px;color:#3fb950;">✅ 邮箱已验证: ' + verifiedEmail + '</span>'
+      : '<span id="emailVerifyHint" style="font-size:12px;display:block;margin-top:-4px;margin-bottom:8px;"></span>';
     document.getElementById('authForm').innerHTML = `
-      <div class="form-group"><label>用户名</label><input type="text" id="regUser" placeholder="2-20个字符"></div>
-      <div class="form-group"><label>密码</label><input type="password" id="regPass" placeholder="8位以上，含字母+数字+符号" oninput="checkPassStrength()"></div>
-      <div class="form-group"><label>确认密码</label><input type="password" id="regPass2" placeholder="再次输入密码" oninput="checkPassMatch()"></div>
+      <div class="form-group"><label style="display:block;">用户名</label><input type="text" id="regUser" placeholder="2-20个字符" autocomplete="username"></div>
+      <div class="form-group"><label style="display:block;">密码</label><input type="password" id="regPass" placeholder="8位以上，含字母+数字+符号" autocomplete="new-password" oninput="checkPassStrength()"></div>
+      <div class="form-group"><label style="display:block;">确认密码</label><input type="password" id="regPass2" placeholder="再次输入密码" autocomplete="new-password" oninput="checkPassMatch()"></div>
       <span id="passHint" style="font-size:11px;color:#8b949e;display:block;margin-top:-10px;margin-bottom:8px;">需包含大写、小写、数字、符号中至少3种</span>
-      <div class="form-group"><label>邮箱</label>
+      <div class="form-group"><label style="display:block;">邮箱</label>
         <div class="flex gap-8" style="align-items:flex-end;">
-          <input type="email" id="regEmail" placeholder="用于接收验证码" style="flex:1;">
+          <input type="email" id="regEmail" placeholder="用于接收验证码" style="flex:1;" value="${verifiedEmail || ''}" oninput="onEmailChanged()">
           <button class="btn btn-primary btn-sm" onclick="sendVerifyCode()" id="sendCodeBtn">获取验证码</button>
         </div>
       </div>
-      <div class="form-group"><label>邮箱验证码</label>
+      <div class="form-group"><label style="display:block;">邮箱验证码</label>
         <div class="flex gap-8" style="align-items:flex-end;">
           <input type="text" id="regCode" placeholder="输入6位验证码" maxlength="6" style="flex:1;">
           <button class="btn btn-sm" onclick="verifyEmailCode()" id="verifyBtn">验证</button>
         </div>
       </div>
-      <span id="emailVerifyHint" style="font-size:12px;display:block;margin-top:-4px;margin-bottom:8px;"></span>
+      ${emailVerifiedHint}
       <button class="btn btn-primary btn-block" onclick="doRegister()" id="regSubmitBtn">注册</button>`;
+  }
+}
+
+function onEmailChanged() {
+  // 如果用户改了邮箱，清除旧的验证状态
+  const currentEmail = document.getElementById('regEmail').value.trim();
+  if (verifiedEmail && currentEmail !== verifiedEmail) {
+    verifiedEmail = '';
+    const hint = document.getElementById('emailVerifyHint');
+    if (hint) { hint.innerHTML = ''; hint.style.color = ''; }
+    const verifyBtn = document.getElementById('verifyBtn');
+    if (verifyBtn) { verifyBtn.textContent = '验证'; verifyBtn.disabled = false; }
   }
 }
 
@@ -286,48 +354,87 @@ function checkPassMatch() {
   }
 }
 
+function startCooldown(sec = 60) {
+  const btn = document.getElementById('sendCodeBtn');
+  if (!btn) return;
+  sendCooldown = sec;
+  btn.disabled = true;
+  if (sendCooldownTimer) clearInterval(sendCooldownTimer);
+  sendCooldownTimer = setInterval(() => {
+    sendCooldown--;
+    if (sendCooldown <= 0) {
+      clearInterval(sendCooldownTimer); sendCooldownTimer = null;
+      btn.textContent = '获取验证码'; btn.disabled = false;
+      btn.style.background = ''; btn.style.borderColor = '';
+    } else {
+      btn.textContent = `${sendCooldown}s后重试`;
+    }
+  }, 1000);
+}
+
 async function sendVerifyCode() {
   if (sendCooldown > 0) return;
-  const email = document.getElementById('regEmail').value.trim();
+  const emailEl = document.getElementById('regEmail');
+  if (!emailEl) return;
+  const email = emailEl.value.trim();
   if (!email || email.indexOf('@') < 0) { showMsg('authMsg', '请输入正确的邮箱地址', 'error'); return; }
-
   const btn = document.getElementById('sendCodeBtn');
-  btn.disabled = true; btn.textContent = '发送中...';
+  if (btn) { btn.disabled = true; btn.textContent = '发送中...'; }
 
-  const res = await API('/shop/auth/send_code', {method:'POST', body:JSON.stringify({email})});
-  if (res.status === 'ok') {
+  let res;
+  try {
+    res = await API('/shop/auth/send_code', {method:'POST', body:JSON.stringify({email})});
+  } catch (e) {
+    showMsg('authMsg', '网络错误，请重试', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
+    return;
+  }
+
+  if (res && res.status === 'ok') {
     showMsg('authMsg', res.message, 'success');
-    btn.textContent = '已发送 ✅'; btn.style.background = '#1b3a1b'; btn.style.borderColor = '#238636';
-    sendCooldown = 60;
-    const cd = setInterval(() => {
-      sendCooldown--;
-      if (sendCooldown <= 0) { clearInterval(cd); btn.textContent = '获取验证码'; btn.disabled = false; btn.style.background = ''; btn.style.borderColor = ''; }
-      else { btn.textContent = `${sendCooldown}s`; }
-    }, 1000);
+    if (btn) { btn.textContent = '已发送 ✅'; btn.style.background = '#1b3a1b'; btn.style.borderColor = '#238636'; }
+    startCooldown(60);
   } else {
-    showMsg('authMsg', res.detail || '发送失败', 'error');
-    btn.disabled = false; btn.textContent = '获取验证码';
+    showMsg('authMsg', (res && res.detail) || '发送失败，请检查邮箱地址', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
   }
 }
 
 async function verifyEmailCode() {
-  const email = document.getElementById('regEmail').value.trim();
-  const code = document.getElementById('regCode').value.trim();
+  const emailEl = document.getElementById('regEmail');
+  const codeEl = document.getElementById('regCode');
+  if (!emailEl || !codeEl) return;
+  const email = emailEl.value.trim();
+  const code = codeEl.value.trim();
+  if (!email || email.indexOf('@') < 0) { showMsg('authMsg', '请先输入正确的邮箱地址', 'error'); return; }
   if (!code || code.length < 4) { showMsg('authMsg', '请输入验证码', 'error'); return; }
 
-  const res = await API('/shop/auth/verify_email', {method:'POST', body:JSON.stringify({email, code})});
+  let res;
+  try {
+    res = await API('/shop/auth/verify_email', {method:'POST', body:JSON.stringify({email, code})});
+  } catch (e) {
+    showMsg('authMsg', '网络错误，请重试', 'error');
+    return;
+  }
+
   const hint = document.getElementById('emailVerifyHint');
-  if (res.status === 'ok') {
+  if (!hint) return;
+  if (res && res.status === 'ok') {
     verifiedEmail = email;
-    hint.innerHTML = '✅ 邮箱验证通过'; hint.style.color = '#3fb950';
-    document.getElementById('verifyBtn').textContent = '已验证 ✅';
-    document.getElementById('verifyBtn').disabled = true;
-    document.getElementById('sendCodeBtn').textContent = '已发送 ✅';
-    document.getElementById('sendCodeBtn').disabled = true;
-    document.getElementById('sendCodeBtn').style.background = '#1b3a1b';
-    document.getElementById('sendCodeBtn').style.borderColor = '#238636';
+    hint.innerHTML = '✅ 邮箱验证通过: ' + email; hint.style.color = '#3fb950';
+    const verifyBtn = document.getElementById('verifyBtn');
+    const sendBtn = document.getElementById('sendCodeBtn');
+    if (verifyBtn) { verifyBtn.textContent = '已验证 ✅'; verifyBtn.disabled = true; }
+    if (sendBtn) {
+      sendBtn.textContent = '已发送 ✅'; sendBtn.disabled = true;
+      sendBtn.style.background = '#1b3a1b'; sendBtn.style.borderColor = '#238636';
+    }
+    // 注册按钮可用
+    const regBtn = document.getElementById('regSubmitBtn');
+    if (regBtn) { regBtn.disabled = false; regBtn.style.opacity = '1'; }
   } else {
-    hint.innerHTML = '❌ ' + (res.detail || '验证失败'); hint.style.color = '#f85149';
+    hint.innerHTML = '❌ ' + ((res && res.detail) || '验证失败，请检查验证码是否正确'); hint.style.color = '#f85149';
+    verifiedEmail = '';
   }
 }
 
@@ -335,6 +442,8 @@ async function doRegister() {
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
   const password2 = document.getElementById('regPass2').value;
+  const emailEl = document.getElementById('regEmail');
+  const currentEmail = emailEl ? emailEl.value.trim() : '';
 
   // 校验用户名
   if (!username || username.length < 2) { showMsg('authMsg', '用户名至少2个字符', 'error'); return; }
@@ -352,29 +461,54 @@ async function doRegister() {
   // 校验两次密码一致
   if (password !== password2) { showMsg('authMsg', '两次密码不一致', 'error'); return; }
 
-  // 校验邮箱已验证
-  if (!verifiedEmail) { showMsg('authMsg', '请先验证邮箱', 'error'); return; }
+  // 校验邮箱已验证（双重检查：变量 + 与当前输入一致）
+  if (!verifiedEmail) { showMsg('authMsg', '请先验证邮箱（点击验证码旁的"验证"按钮）', 'error'); return; }
+  if (verifiedEmail !== currentEmail) {
+    showMsg('authMsg', '邮箱已更改，请重新验证新邮箱', 'error');
+    verifiedEmail = '';
+    return;
+  }
 
-  const res = await API('/shop/auth/register', {method:'POST', body:JSON.stringify({username, password, email: verifiedEmail})});
-  if (res.status === 'ok') {
+  let res;
+  try {
+    res = await API('/shop/auth/register', {method:'POST', body:JSON.stringify({username, password, email: verifiedEmail})});
+  } catch (e) {
+    showMsg('authMsg', '网络错误，请重试', 'error');
+    return;
+  }
+  if (res && res.status === 'ok') {
     showMsg('authMsg', '注册成功！正在跳转登录...', 'success');
     setTimeout(() => toggleAuth('login'), 1500);
   } else {
-    showMsg('authMsg', res.detail || '注册失败', 'error');
+    showMsg('authMsg', (res && res.detail) || '注册失败，请重试', 'error');
   }
 }
 
 async function doAuth() {
   const username = document.getElementById('authUser').value.trim();
   const password = document.getElementById('authPass').value;
-  if (!username || !password) { showMsg('authMsg', '请填写完整', 'error'); return; }
-  const res = await API('/shop/auth/login', {method:'POST', body:JSON.stringify({username, password})});
-  if (res.status === 'ok' && res.token) {
+  if (!username || !password) { showMsg('authMsg', '请填写用户名和密码', 'error'); return; }
+
+  let res;
+  try {
+    res = await API('/shop/auth/login', {method:'POST', body:JSON.stringify({username, password})});
+  } catch (e) {
+    showMsg('authMsg', '网络连接失败，请检查网络后重试', 'error');
+    return;
+  }
+
+  if (res && res.status === 'ok' && res.token) {
     localStorage.setItem('shop_token', res.token);
     currentUser = res.user;
     showApp();
   } else {
-    showMsg('authMsg', res.detail || '登录失败', 'error');
+    const detail = (res && res.detail) || '登录失败';
+    // 区分不同的错误类型
+    if (detail.includes('频繁') || detail.includes('锁定') || detail.includes('秒后')) {
+      showMsg('authMsg', '⏳ ' + detail, 'error');
+    } else {
+      showMsg('authMsg', detail, 'error');
+    }
   }
 }
 
@@ -393,10 +527,14 @@ function showMsg(id, text, type) {
 // ═══════════════════════════════════════════════════
 function showApp() {
   const ub = document.getElementById('userBar');
+  const vl = currentUser.vip_level || 'normal';
+  const badge = VIP_BADGES[vl] || '';
+  const vcls = VIP_CLASSES[vl] || '';
+  const vipTag = vl !== 'normal' ? `<span class="vip-badge ${vcls}">${badge} ${vl.toUpperCase()}</span>` : '';
   ub.innerHTML = `
     <span class="balance">💰 ${currentUser.balance.toFixed(2)} 元</span>
     <button class="btn btn-sm btn-primary" onclick="openRedeem()">💳 充值</button>
-    <span style="color:#8b949e;font-size:13px;">👤 ${currentUser.username}${currentUser.is_admin?' <span style="color:#d2991d;">[管理]</span>':''}</span>`;
+    <span style="color:#8b949e;font-size:13px;">👤 ${currentUser.username}${vipTag}${currentUser.is_admin?' <span style="color:#d2991d;">[管理]</span>':''}</span>`;
   document.getElementById('navBar').style.display = 'flex';
 
   // Admin tabs
@@ -422,10 +560,15 @@ function switchTab(tab) {
     case 'home': renderHome(); break;
     case 'orders': renderOrders(); break;
     case 'records': renderRecords(); break;
+    case 'settings': renderSettings(); break;
     case 'admin-dashboard': renderAdminDashboard(); break;
     case 'admin-cards': renderAdminCards(); break;
     case 'admin-products': renderAdminProducts(); break;
     case 'admin-inventory': renderAdminInventory(); break;
+    case 'admin-users': renderAdminUsers(); break;
+    case 'admin-promo': renderAdminPromo(); break;
+    case 'admin-discounts': renderAdminDiscounts(); break;
+    case 'admin-vip': renderAdminVip(); break;
   }
 }
 
@@ -491,49 +634,100 @@ async function doRedeem() {
 // ═══════════════════════════════════════════════════
 // Buy
 // ═══════════════════════════════════════════════════
-function openBuy(id, name, price, stock) {
+async function openBuy(id, name, price, stock) {
   buyProduct = {id, name, price, stock};
-  document.getElementById('buyInfo').innerHTML = `<p>商品: <b style="color:#e6f1ff;">${name}</b></p><p>单价: <b style="color:#3fb950;">¥${price.toFixed(2)}</b></p><p>库存: ${stock}</p>`;
+  buyPromoCode = null; buyPromoDiscount = 0;
+  const vipLevel = currentUser.vip_level || 'normal';
+  let displayPrice = price;
+  let isVip = false;
+
+  if (vipLevel !== 'normal') {
+    // Check VIP price
+    try {
+      const vpRes = await API(`/shop/admin/vip_prices?product_id=${id}`);
+      const vpPrices = vpRes.prices || [];
+      const vp = vpPrices.find(p => p.vip_level === vipLevel);
+      if (vp && vp.price > 0) { displayPrice = vp.price; isVip = true; }
+    } catch(e) {}
+  }
+
+  let infoHtml = `<p>商品: <b style="color:#e6f1ff;">${name}</b></p>`;
+  if (isVip) {
+    infoHtml += `<p>VIP价格: <b style="color:#ffd700;">¥${displayPrice.toFixed(2)}</b> <span class="tag tag-yellow">${vipLevel.toUpperCase()}</span></p>`;
+  } else {
+    infoHtml += `<p>单价: <b style="color:#3fb950;">¥${displayPrice.toFixed(2)}</b></p>`;
+  }
+  infoHtml += `<p>库存: ${stock}</p><div id="discountInfo" style="margin-top:8px;"></div>`;
+
+  // Promo input for non-VIP
+  if (!isVip) {
+    infoHtml += `<div class="discount-row"><input type="text" id="promoInput" placeholder="优惠码" style="flex:1;padding:8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#c9d1d9;"><button class="btn btn-sm btn-primary" onclick="applyPromo()">验证</button></div><span id="promoHint" style="font-size:12px;display:block;margin-top:4px;"></span>`;
+  }
+
+  buyProduct.displayPrice = displayPrice;
+  buyProduct.isVip = isVip;
+  document.getElementById('buyInfo').innerHTML = infoHtml;
   document.getElementById('buyQty').value = 1;
   document.getElementById('buyQty').max = stock;
+  document.getElementById('buyQty').onchange = updateBuyTotal;
   updateBuyTotal();
   document.getElementById('buyModal').classList.add('show');
 }
 
-function closeBuy() {
-  document.getElementById('buyModal').classList.remove('show');
-  buyProduct = null;
+function closeBuy() { document.getElementById('buyModal').classList.remove('show'); buyProduct = null; }
+
+async function updateBuyTotal() {
+  const qty = parseInt(document.getElementById('buyQty').value) || 1;
+  let total = (buyProduct.displayPrice || buyProduct.price) * qty;
+  const discDiv = document.getElementById('discountInfo');
+  if (discDiv && !buyProduct.isVip) {
+    const res = await API(`/shop/products/${buyProduct.id}/discount?quantity=${qty}`);
+    let html = '';
+    if (res.single) html += `<span class="discount-tag">单次满${res.single.min_quantity}件享${res.single.discount_percent}%折扣</span> `;
+    if (res.cumulative) html += `<span class="discount-tag">累计满${res.cumulative.min_quantity}件享${res.cumulative.discount_percent}%折扣</span>`;
+    discDiv.innerHTML = html;
+    const bestPct = Math.max(res.single?.discount_percent||0, res.cumulative?.discount_percent||0);
+    if (bestPct > 0) total = total * (1 - bestPct / 100);
+  }
+  total = Math.max(0, total - buyPromoDiscount);
+  document.getElementById('buyTotal').textContent = total.toFixed(2);
 }
 
-function updateBuyTotal() {
+async function applyPromo() {
+  const code = document.getElementById('promoInput').value.trim();
+  if (!code) return;
   const qty = parseInt(document.getElementById('buyQty').value) || 1;
-  document.getElementById('buyTotal').textContent = buyProduct ? (buyProduct.price * qty).toFixed(2) : '0';
+  const subtotal = (buyProduct.displayPrice || buyProduct.price) * qty;
+  const res = await API('/shop/promo/validate', {method:'POST', body:JSON.stringify({code, order_total: subtotal, product_id: buyProduct.id})});
+  const hint = document.getElementById('promoHint');
+  if (res.status === 'ok') {
+    buyPromoCode = code; buyPromoDiscount = res.discount_amount;
+    hint.innerHTML = `✅ -¥${res.discount_amount.toFixed(2)}`; hint.style.color = '#3fb950';
+    updateBuyTotal();
+  } else {
+    hint.innerHTML = '❌ ' + (res.detail||'无效'); hint.style.color = '#f85149';
+    buyPromoCode = null; buyPromoDiscount = 0;
+  }
 }
 
 async function doBuy() {
   const qty = parseInt(document.getElementById('buyQty').value) || 1;
-  const res = await API('/shop/orders', {method:'POST', body:JSON.stringify({product_id: buyProduct.id, quantity: qty})});
+  const body = {product_id: buyProduct.id, quantity: qty};
+  if (buyPromoCode) body.promo_code = buyPromoCode;
+  const res = await API('/shop/orders', {method:'POST', body:JSON.stringify(body)});
   if (res.status === 'ok') {
     currentUser.balance = res.balance;
     document.querySelector('.balance').textContent = `💰 ${currentUser.balance.toFixed(2)} 元`;
     closeBuy();
-
-    // Show result
-    let html = `<h3 style="color:#3fb950;">✅ 购买成功！</h3><p style="color:#8b949e;margin:8px 0;">订单号: #${res.order.id} | 消费: ${res.order.total_price.toFixed(2)} 元</p>`;
-    (res.cards||[]).forEach((c,i) => {
-      html += `
-        <div class="card-detail">
-          <div class="field"><span>📧 账号</span><span class="val">${c.account}</span></div>
-          <div class="field"><span>🔑 密码</span><span class="val">${c.password}</span></div>
-          ${c.recovery_email ? `<div class="field"><span>📧 恢复邮箱</span><span class="val">${c.recovery_email}</span></div>` : ''}
-        </div>`;
+    let html = `<h3 style="color:#3fb950;">✅ 购买成功！</h3>
+      <p style="color:#8b949e;">订单号: #${res.order.id} | 消费: ${res.order.total_price.toFixed(2)} 元</p>`;
+    if (res.order.discount > 0) html += `<p style="color:#d2991d;">优惠: -¥${res.order.discount.toFixed(2)}</p>`;
+    (res.cards||[]).forEach(c => {
+      html += `<div class="card-detail"><div class="field"><span>📧 账号</span><span class="val">${c.account}</span></div><div class="field"><span>🔑 密码</span><span class="val">${c.password}</span></div>${c.recovery_email?`<div class="field"><span>📧 恢复</span><span class="val">${c.recovery_email}</span></div>`:''}</div>`;
     });
     html += `<button class="btn btn-primary mt-16" onclick="switchTab('orders')">查看订单</button>`;
-
     document.getElementById('mainContent').innerHTML = `<div class="card">${html}</div>`;
-  } else {
-    alert(res.detail || '购买失败');
-  }
+  } else { alert(res.detail || '购买失败'); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -541,41 +735,41 @@ async function doBuy() {
 // ═══════════════════════════════════════════════════
 async function renderOrders() {
   const mc = document.getElementById('mainContent');
-  mc.innerHTML = '<div class="loading" style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
+  mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
   const res = await API('/shop/orders');
   const orders = res.orders || [];
   let html = '<h3 style="color:#58a6ff;margin-bottom:16px;">📦 我的订单</h3>';
-  if (!orders.length) {
-    html += '<p style="color:#8b949e;">暂无订单</p>';
-  } else {
-    html += '<table class="table"><thead><tr><th>订单号</th><th>商品</th><th>数量</th><th>金额</th><th>时间</th><th>操作</th></tr></thead><tbody>';
+  if (!orders.length) { html += '<p style="color:#8b949e;">暂无订单</p>'; }
+  else {
     orders.forEach(o => {
-      html += `<tr>
-        <td>#${o.id}</td><td>${o.product_name}</td><td>${o.quantity}</td>
-        <td style="color:#3fb950;">${o.total_price.toFixed(2)}</td><td>${o.created_at}</td>
-        <td><button class="btn btn-sm" onclick="viewOrder(${o.id})">详情</button></td></tr>`;
+      const cards = o.cards || [];
+      const hasDiscount = o.discount_amount > 0;
+      html += `<div class="order-card" onclick="this.querySelector('.order-cards').classList.toggle('hidden')">
+        <div class="order-header">
+          <div><b style="color:#e6f1ff;">#${o.id}</b> <span style="color:#c9d1d9;">${o.product_name}</span>
+            <span style="color:#8b949e;margin-left:8px;">x${o.quantity}</span>
+            ${o.promo_code ? `<span class="tag tag-yellow">${o.promo_code}</span>` : ''}
+            ${hasDiscount ? `<span style="color:#d2991d;margin-left:8px;">-¥${o.discount_amount.toFixed(2)}</span>` : ''}
+          </div>
+          <div><span style="color:#3fb950;font-weight:bold;">¥${o.total_price.toFixed(2)}</span>
+            <span style="color:#8b949e;margin-left:8px;font-size:12px;">${o.created_at}</span></div>
+        </div>
+        <div class="order-cards hidden" onclick="event.stopPropagation()">
+          <h4 style="color:#58a6ff;font-size:13px;margin-bottom:8px;">🎁 账号信息</h4>`;
+      cards.forEach(c => {
+        html += `<div class="card-detail"><div class="field"><span>📧 账号</span><span class="val">${c.account}</span></div><div class="field"><span>🔑 密码</span><span class="val">${c.password}</span></div>${c.recovery_email?`<div class="field"><span>📧 恢复</span><span class="val">${c.recovery_email}</span></div>`:''}</div>`;
+      });
+      html += `<button class="btn btn-sm mt-8" onclick="copyOrder(${o.id})">📋 复制</button></div></div>`;
     });
-    html += '</tbody></table>';
   }
   mc.innerHTML = html;
 }
 
-async function viewOrder(id) {
+async function copyOrder(id) {
   const res = await API(`/shop/orders/${id}`);
-  if (res.status !== 'ok') { alert('获取失败'); return; }
-  let html = `<h3 style="color:#58a6ff;">📋 订单 #${res.order.id}</h3>
-    <p style="color:#8b949e;">商品: ${res.order.product_name} | 数量: ${res.order.quantity} | 金额: ¥${res.order.total_price.toFixed(2)}</p>
-    <h4 style="color:#58a6ff;margin:16px 0 8px;">🎁 发号记录</h4>`;
-  (res.cards||[]).forEach((c,i) => {
-    html += `
-      <div class="card-detail">
-        <div class="field"><span>📧 账号</span><span class="val">${c.account}</span></div>
-        <div class="field"><span>🔑 密码</span><span class="val">${c.password}</span></div>
-        ${c.recovery_email ? `<div class="field"><span>📧 恢复</span><span class="val">${c.recovery_email}</span></div>` : ''}
-      </div>`;
-  });
-  html += '<button class="btn mt-16" onclick="switchTab(\'orders\')">← 返回</button>';
-  document.getElementById('mainContent').innerHTML = `<div class="card">${html}</div>`;
+  if (res.status !== 'ok') return;
+  const text = (res.cards||[]).map(c => `账号: ${c.account}  密码: ${c.password}${c.recovery_email?'  恢复: '+c.recovery_email:''}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板'));
 }
 
 // ═══════════════════════════════════════════════════
@@ -698,11 +892,13 @@ async function loadCards() {
 async function exportCards() {
   const res = await API('/shop/admin/cards/export');
   if (res.status !== 'ok') { alert('导出失败'); return; }
-  const blob = new Blob([res.data], {type:'text/plain'});
+  const bom = '﻿';
+  const blob = new Blob([bom + res.data], {type:'text/plain;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = '充值卡密.txt';
-  a.click();
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
 }
 
 // ═══════════════════════════════════════════════════
@@ -847,6 +1043,270 @@ async function loadInventory() {
   });
   html += '</tbody></table>';
   document.getElementById('invList').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════
+// Settings
+// ═══════════════════════════════════════════════════
+function renderSettings() {
+  const mc = document.getElementById('mainContent');
+  const vl = currentUser.vip_level || 'normal';
+  const badge = VIP_BADGES[vl] || '';
+  const vcls = VIP_CLASSES[vl] || '';
+  mc.innerHTML = `
+    <div class="card"><h3>👤 个人中心</h3>
+      <div class="form-group"><label>用户名</label><input type="text" value="${currentUser.username}" readonly style="background:#1c2128;"></div>
+      <div class="form-group"><label>邮箱</label><input type="text" value="${currentUser.email||'未设置'}" readonly style="background:#1c2128;"></div>
+      <div class="form-group"><label>VIP 等级</label><input type="text" value="${badge} ${vl.toUpperCase()}" readonly style="background:#1c2128;color:#ffd700;font-weight:bold;"></div>
+      <div class="form-group"><label>我的邀请码</label>
+        <div class="setting-row"><input type="text" id="myInviteCode" value="${currentUser.invite_code||''}" readonly style="flex:1;background:#1c2128;font-family:monospace;font-size:15px;letter-spacing:2px;"><button class="btn btn-primary btn-sm" onclick="document.getElementById('myInviteCode').select();document.execCommand('copy');alert('已复制！')">📋 复制</button></div>
+      </div>
+      <div class="form-group"><label>已邀请人数</label><input type="text" value="${currentUser.invite_count||0} 人" readonly style="background:#1c2128;"></div>
+      <button class="btn btn-primary" onclick="openPwd()">🔑 修改密码</button>
+    </div>
+    <div class="card"><h3>🏆 VIP 等级说明</h3>
+      <table class="table"><thead><tr><th>等级</th><th>邀请要求</th><th>购买折扣</th></tr></thead><tbody>
+        <tr><td>⚪ 普通用户</td><td>-</td><td>可参与折扣活动</td></tr>
+        <tr><td style="color:#cd7f32;">🥉 VIP 1</td><td>邀请1人</td><td>享VIP固定价</td></tr>
+        <tr><td style="color:#c0c0c0;">🥈 VIP 2</td><td>邀请5人</td><td>享VIP固定价</td></tr>
+        <tr><td style="color:#ffd700;">🥇 SVIP</td><td>邀请20人</td><td>享VIP固定价</td></tr>
+      </tbody></table>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// Password change
+// ═══════════════════════════════════════════════════
+function openPwd() { document.getElementById('pwdMsg').innerHTML=''; document.getElementById('oldPwd').value=''; document.getElementById('newPwd1').value=''; document.getElementById('newPwd2').value=''; document.getElementById('pwdModal').classList.add('show'); }
+function closePwd() { document.getElementById('pwdModal').classList.remove('show'); }
+function checkPwdStr() {
+  const p = document.getElementById('newPwd1').value; const hint = document.getElementById('pwdHint');
+  let types = 0;
+  if (/[a-z]/.test(p)) types++; if (/[A-Z]/.test(p)) types++; if (/[0-9]/.test(p)) types++; if (/[^a-zA-Z0-9]/.test(p)) types++;
+  if (p.length < 8) { hint.innerHTML='❌ 至少8个字符'; hint.style.color='#f85149'; }
+  else if (types < 3) { hint.innerHTML=`⚠️ 已包含 ${types}/3 种字符`; hint.style.color='#d2991d'; }
+  else { hint.innerHTML='✅ 密码强度合格'; hint.style.color='#3fb950'; }
+}
+
+async function doChangePwd() {
+  const old_password = document.getElementById('oldPwd').value;
+  const new_password = document.getElementById('newPwd1').value;
+  const new_password2 = document.getElementById('newPwd2').value;
+  if (!old_password||!new_password) { showMsg('pwdMsg','请填写完整','error'); return; }
+  if (new_password !== new_password2) { showMsg('pwdMsg','两次密码不一致','error'); return; }
+  if (new_password.length < 8) { showMsg('pwdMsg','新密码至少8位','error'); return; }
+  let types = 0;
+  if (/[a-z]/.test(new_password)) types++; if (/[A-Z]/.test(new_password)) types++; if (/[0-9]/.test(new_password)) types++; if (/[^a-zA-Z0-9]/.test(new_password)) types++;
+  if (types < 3) { showMsg('pwdMsg','密码需包含大写、小写、数字、符号中至少3种','error'); return; }
+  const res = await API('/shop/auth/change_password', {method:'POST', body:JSON.stringify({old_password, new_password})});
+  if (res.status === 'ok') { showMsg('pwdMsg', res.message, 'success'); setTimeout(()=>{closePwd(); logout();},1500); }
+  else { showMsg('pwdMsg', res.detail||'修改失败', 'error'); }
+}
+
+// ═══════════════════════════════════════════════════
+// Admin Users
+// ═══════════════════════════════════════════════════
+async function renderAdminUsers() {
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
+  const res = await API('/shop/admin/users');
+  const users = res.users || [];
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">👥 用户管理</h3>';
+  html += '<table class="table"><thead><tr><th>ID</th><th>用户名</th><th>邮箱</th><th>余额</th><th>VIP</th><th>消费</th><th>邀请</th><th>注册</th><th>操作</th></tr></thead><tbody>';
+  users.forEach(u => {
+    const vBadge = VIP_BADGES[u.vip_level] || '';
+    html += `<tr><td>${u.id}</td><td>${u.username}</td><td style="font-size:12px;">${u.email||'-'}</td>
+      <td>¥${(u.balance||0).toFixed(2)}</td><td>${vBadge} ${u.vip_level||'normal'}</td>
+      <td>¥${(u.total_spent_calc||0).toFixed(2)}</td><td>${u.invite_count||0}</td>
+      <td style="font-size:11px;">${u.created_at||''}</td>
+      <td><button class="btn btn-sm" onclick="adminUserDetail(${u.id},'${u.username}','${u.vip_level||'normal'}')">管理</button></td></tr>`;
+  });
+  html += '</tbody></table>';
+  mc.innerHTML = html;
+}
+
+function adminUserDetail(id, username, currentVip) {
+  let html = `<h3 style="color:#58a6ff;">👤 ${username} (ID:${id})</h3>
+    <div class="card">
+      <h3>修改 VIP 等级</h3>
+      <select id="setVip" style="padding:8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#c9d1d9;">
+        <option value="normal" ${currentVip==='normal'?'selected':''}>普通用户</option>
+        <option value="vip1" ${currentVip==='vip1'?'selected':''}>🥉 VIP 1</option>
+        <option value="vip2" ${currentVip==='vip2'?'selected':''}>🥈 VIP 2</option>
+        <option value="svip" ${currentVip==='svip'?'selected':''}>🥇 SVIP</option>
+      </select>
+      <button class="btn btn-primary btn-sm ml-8" onclick="setUserVip(${id})">保存</button>
+    </div>
+    <div class="card">
+      <h3>重置密码</h3>
+      <button class="btn btn-danger btn-sm" onclick="resetUserPwd(${id})">重置为随机密码</button>
+      <span id="resetPwdResult" style="margin-left:8px;color:#3fb950;"></span>
+    </div>
+    <button class="btn mt-16" onclick="switchTab('admin-users')">← 返回列表</button>`;
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+async function setUserVip(id) {
+  const vip = document.getElementById('setVip').value;
+  const res = await API(`/shop/admin/users/${id}`, {method:'PUT', body:JSON.stringify({vip_level:vip})});
+  alert(res.status==='ok'?res.message:res.detail);
+}
+
+async function resetUserPwd(id) {
+  const res = await API(`/shop/admin/users/${id}/reset_password`, {method:'POST'});
+  if (res.status==='ok') document.getElementById('resetPwdResult').textContent = `新密码: ${res.new_password}`;
+  else alert(res.detail);
+}
+
+// ═══════════════════════════════════════════════════
+// Admin Promo Codes
+// ═══════════════════════════════════════════════════
+async function renderAdminPromo() {
+  const mc = document.getElementById('mainContent');
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">🏷️ 优惠码管理</h3>';
+  html += `<div class="card"><h3>创建优惠码</h3>
+    <div class="flex gap-8 flex-wrap">
+      <div class="form-group" style="min-width:120px;"><label>优惠码</label><input type="text" id="pcCode" placeholder="SUMMER"></div>
+      <div class="form-group" style="min-width:100px;"><label>类型</label><select id="pcType"><option value="percent">百分比</option><option value="fixed">固定金额</option></select></div>
+      <div class="form-group" style="min-width:100px;"><label>值</label><input type="number" id="pcValue" value="10" step="0.01"></div>
+      <div class="form-group" style="min-width:100px;"><label>限商品ID</label><input type="number" id="pcProduct" value="0"></div>
+      <div class="form-group" style="min-width:100px;"><label>最低消费</label><input type="number" id="pcMin" value="0" step="0.01"></div>
+      <div class="form-group" style="min-width:80px;"><label>使用上限</label><input type="number" id="pcMax" value="0"></div>
+      <div class="form-group" style="min-width:130px;"><label>开始时间</label><input type="text" id="pcStart" placeholder="2026-01-01 00:00:00"></div>
+      <div class="form-group" style="min-width:130px;"><label>结束时间</label><input type="text" id="pcEnd" placeholder="2026-12-31 23:59:59"></div>
+      <div class="form-group" style="align-self:flex-end;"><button class="btn btn-primary" onclick="createPromo()">创建</button></div>
+    </div><div id="pcResult" class="mt-16"></div></div>`;
+  html += '<div class="card"><h3>优惠码列表</h3><div id="pcList">加载中...</div></div>';
+  mc.innerHTML = html;
+  loadPromos();
+}
+
+async function loadPromos() {
+  const res = await API('/shop/admin/promo_codes');
+  let html = '<table class="table"><thead><tr><th>ID</th><th>码</th><th>类型</th><th>值</th><th>限商品</th><th>使用</th><th>时间</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+  (res.promo_codes||[]).forEach(p => {
+    html += `<tr><td>${p.id}</td><td style="font-family:monospace;">${p.code}</td><td>${p.discount_type}</td><td>${p.discount_value}</td>
+      <td>${p.target_product_id||'全'}</td><td>${p.used_count}/${p.max_uses||'∞'}</td>
+      <td style="font-size:11px;">${p.start_time||''}~${p.end_time||''}</td>
+      <td>${p.is_active?'<span class="tag tag-green">启用</span>':'<span class="tag tag-red">停用</span>'}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deletePromo(${p.id})">停用</button></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('pcList').innerHTML = html;
+}
+
+async function createPromo() {
+  const body = {
+    code: document.getElementById('pcCode').value.trim(),
+    discount_type: document.getElementById('pcType').value,
+    discount_value: parseFloat(document.getElementById('pcValue').value)||0,
+    target_product_id: parseInt(document.getElementById('pcProduct').value)||0,
+    min_order_amount: parseFloat(document.getElementById('pcMin').value)||0,
+    max_uses: parseInt(document.getElementById('pcMax').value)||0,
+    start_time: document.getElementById('pcStart').value.trim(),
+    end_time: document.getElementById('pcEnd').value.trim()
+  };
+  if (!body.code) { alert('请输入优惠码'); return; }
+  const res = await API('/shop/admin/promo_codes', {method:'POST', body:JSON.stringify(body)});
+  if (res.status==='ok') { document.getElementById('pcResult').innerHTML=`<div class="alert alert-success">${res.message}</div>`; loadPromos(); }
+  else { document.getElementById('pcResult').innerHTML=`<div class="alert alert-error">${res.detail}</div>`; }
+}
+
+async function deletePromo(id) { await API(`/shop/admin/promo_codes/${id}`, {method:'DELETE'}); loadPromos(); }
+
+// ═══════════════════════════════════════════════════
+// Admin Quantity Discounts
+// ═══════════════════════════════════════════════════
+async function renderAdminDiscounts() {
+  const mc = document.getElementById('mainContent');
+  const prods = await API('/shop/products');
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">📉 批量折扣管理</h3>';
+  html += `<div class="card"><h3>创建折扣规则</h3>
+    <div class="flex gap-8 flex-wrap">
+      <div class="form-group" style="min-width:150px;"><label>商品</label><select id="qdProduct">${(prods.products||[]).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
+      <div class="form-group" style="min-width:100px;"><label>满X件</label><input type="number" id="qdMinQty" value="10" min="1"></div>
+      <div class="form-group" style="min-width:100px;"><label>折扣%</label><input type="number" id="qdPct" value="10" step="0.1"></div>
+      <div class="form-group" style="min-width:120px;"><label>模式</label><select id="qdMode"><option value="single">单次满即享</option><option value="cumulative">累计达标</option></select></div>
+      <div class="form-group" style="min-width:130px;"><label>开始</label><input type="text" id="qdStart" placeholder="2026-01-01"></div>
+      <div class="form-group" style="min-width:130px;"><label>结束</label><input type="text" id="qdEnd" placeholder="2026-12-31"></div>
+      <div class="form-group" style="align-self:flex-end;"><button class="btn btn-primary" onclick="createQtyDiscount()">创建</button></div>
+    </div></div>`;
+  html += '<div class="card"><h3>折扣列表</h3><div id="qdList">加载中...</div></div>';
+  mc.innerHTML = html;
+  loadQtyDiscounts();
+}
+
+async function loadQtyDiscounts() {
+  const res = await API('/shop/admin/quantity_discounts');
+  let html = '<table class="table"><thead><tr><th>ID</th><th>商品</th><th>满X件</th><th>折扣%</th><th>模式</th><th>时间</th><th>操作</th></tr></thead><tbody>';
+  (res.discounts||[]).forEach(d => {
+    html += `<tr><td>${d.id}</td><td>${d.product_name||d.product_id}</td><td>${d.min_quantity}</td><td>${d.discount_percent}%</td>
+      <td>${d.discount_mode==='cumulative'?'📊 累计':'📦 单次'}</td><td style="font-size:11px;">${d.start_time||''}~${d.end_time||''}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteQtyDiscount(${d.id})">删除</button></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('qdList').innerHTML = html;
+}
+
+async function createQtyDiscount() {
+  const body = {
+    product_id: parseInt(document.getElementById('qdProduct').value)||0,
+    min_quantity: parseInt(document.getElementById('qdMinQty').value)||0,
+    discount_percent: parseFloat(document.getElementById('qdPct').value)||0,
+    discount_mode: document.getElementById('qdMode').value,
+    start_time: document.getElementById('qdStart').value.trim(),
+    end_time: document.getElementById('qdEnd').value.trim()
+  };
+  const res = await API('/shop/admin/quantity_discounts', {method:'POST', body:JSON.stringify(body)});
+  if (res.status==='ok') { alert('已创建'); loadQtyDiscounts(); }
+  else { alert(res.detail); }
+}
+
+async function deleteQtyDiscount(id) { await API(`/shop/admin/quantity_discounts/${id}`, {method:'DELETE'}); loadQtyDiscounts(); }
+
+// ═══════════════════════════════════════════════════
+// Admin VIP Pricing
+// ═══════════════════════════════════════════════════
+async function renderAdminVip() {
+  const mc = document.getElementById('mainContent');
+  const prods = await API('/shop/products');
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">👑 VIP定价管理</h3>';
+  html += `<div class="card"><h3>设置VIP价格</h3>
+    <div class="form-group"><label>商品</label><select id="vpProduct" onchange="loadVipPrices()">${(prods.products||[]).map(p=>`<option value="${p.id}">${p.name} (原价¥${p.price.toFixed(2)})</option>`).join('')}</select></div>
+    <div class="flex gap-8 flex-wrap">
+      <div class="form-group" style="min-width:120px;"><label>VIP1 价格</label><input type="number" id="vpVip1" step="0.01" placeholder="留空=不设置"></div>
+      <div class="form-group" style="min-width:120px;"><label>VIP2 价格</label><input type="number" id="vpVip2" step="0.01" placeholder="留空=不设置"></div>
+      <div class="form-group" style="min-width:120px;"><label>SVIP 价格</label><input type="number" id="vpSvip" step="0.01" placeholder="留空=不设置"></div>
+      <div class="form-group" style="align-self:flex-end;"><button class="btn btn-primary" onclick="saveVipPrices()">💾 保存</button></div>
+    </div>
+    <div id="vpResult" class="mt-16"></div></div>`;
+  mc.innerHTML = html;
+  setTimeout(loadVipPrices, 200);
+}
+
+async function loadVipPrices() {
+  const pid = document.getElementById('vpProduct').value;
+  const res = await API(`/shop/admin/vip_prices?product_id=${pid}`);
+  document.getElementById('vpVip1').value = ''; document.getElementById('vpVip2').value = ''; document.getElementById('vpSvip').value = '';
+  (res.prices||[]).forEach(p => {
+    if (p.vip_level==='vip1') document.getElementById('vpVip1').value = p.price;
+    if (p.vip_level==='vip2') document.getElementById('vpVip2').value = p.price;
+    if (p.vip_level==='svip') document.getElementById('vpSvip').value = p.price;
+  });
+}
+
+async function saveVipPrices() {
+  const pid = parseInt(document.getElementById('vpProduct').value);
+  const prices = {};
+  const v1 = parseFloat(document.getElementById('vpVip1').value);
+  const v2 = parseFloat(document.getElementById('vpVip2').value);
+  const sv = parseFloat(document.getElementById('vpSvip').value);
+  if (!isNaN(v1) && v1 >= 0) prices.vip1 = v1;
+  if (!isNaN(v2) && v2 >= 0) prices.vip2 = v2;
+  if (!isNaN(sv) && sv >= 0) prices.svip = sv;
+  if (!Object.keys(prices).length) { alert('至少填一个价格'); return; }
+  const res = await API('/shop/admin/vip_prices', {method:'PUT', body:JSON.stringify({product_id: pid, prices})});
+  document.getElementById('vpResult').innerHTML = res.status==='ok' ? `<div class="alert alert-success">${res.message}</div>` : `<div class="alert alert-error">${res.detail}</div>`;
 }
 
 // ═══════════════════════════════════════════════════
