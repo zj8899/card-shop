@@ -28,7 +28,12 @@ app = FastAPI(title="卡密商城", version="1.0")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://dhuangemail.xyz",
+        "http://dhuangemail.xyz",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -53,7 +58,11 @@ async def root():
 async def shop_page():
     shop_path = static_dir / "shop.html"
     if shop_path.exists():
-        return FileResponse(str(shop_path))
+        return FileResponse(str(shop_path), headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        })
     return {"error": "shop.html not found"}
 
 # ═══════════════════════════════════════════════════════════════

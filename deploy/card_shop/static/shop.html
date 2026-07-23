@@ -66,6 +66,15 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
 .table th { color: #58a6ff; }
 .table tr:hover { background: #1c2128; }
 
+/* QR code in recharge modal */
+.qr-section { text-align: center; margin: 16px 0; padding: 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; }
+.qr-title { color: #e6f1ff; font-size: 14px; font-weight: bold; margin: 0 0 4px; }
+.qr-hint { color: #8b949e; font-size: 11px; margin: 0 0 12px; }
+.qr-row { display: flex; gap: 16px; justify-content: center; }
+.qr-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.qr-img { width: 150px; height: 150px; border-radius: 8px; border: 2px solid #30363d; user-select: none; pointer-events: none; object-fit: cover; }
+.qr-label { color: #8b949e; font-size: 12px; }
+
 /* Modal */
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center; }
 .modal-overlay.show { display: flex; }
@@ -111,6 +120,112 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
 /* Settings */
 .setting-row { display: flex; gap: 8px; align-items: flex-end; }
 
+/* Order tabs */
+.order-tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #30363d; }
+.order-tab { padding: 10px 24px; cursor: pointer; color: #8b949e; font-size: 14px; border: none; background: none; transition: all 0.2s; position: relative; }
+.order-tab:hover { color: #c9d1d9; }
+.order-tab.active { color: #58a6ff; font-weight: bold; }
+.order-tab.active::after { content:''; position:absolute; bottom:-2px; left:0; right:0; height:2px; background:#58a6ff; }
+.order-tab .count { font-size: 11px; margin-left: 4px; padding: 1px 6px; border-radius: 8px; background: #21262d; }
+.order-tab.active .count { background: #1f6feb33; color: #58a6ff; }
+
+/* Search bar */
+.search-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+.search-bar input { flex: 1; max-width: 360px; padding: 8px 12px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; color: #c9d1d9; font-size: 13px; }
+.search-bar input:focus { border-color: #58a6ff; outline: none; }
+
+/* Order table */
+.order-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.order-table th, .order-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #21262d; vertical-align: middle; }
+.order-table th { color: #8b949e; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.order-table tr:hover { background: #1c2128; }
+.order-status { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.status-completed { background: #1b3a1b; color: #3fb950; }
+.status-unfinished { background: #3a351b; color: #d2991d; }
+
+/* Action links */
+.action-links { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.action-links a { color: #58a6ff; text-decoration: none; font-size: 12px; cursor: pointer; }
+.action-links a:hover { text-decoration: underline; }
+.action-links .divider { color: #30363d; font-size: 12px; }
+.btn-qq { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #12b7f5; color: #fff !important; text-decoration: none !important; cursor: pointer; }
+.btn-qq:hover { background: #0ea5d3; text-decoration: none !important; }
+
+/* Order detail */
+.order-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.order-detail-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.order-detail-meta .meta-item { background: #0d1117; padding: 12px; border-radius: 6px; border: 1px solid #21262d; }
+.order-detail-meta .meta-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+.order-detail-meta .meta-value { font-size: 15px; font-weight: bold; color: #e6f1ff; }
+
+/* Card list */
+.card-list { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+.card-list-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #1c2128; border-bottom: 1px solid #30363d; }
+.card-list-body { padding: 16px; max-height: 500px; overflow-y: auto; }
+.card-list-item { padding: 8px 12px; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; border-bottom: 1px solid #21262d; display: flex; align-items: flex-start; gap: 8px; }
+.card-list-item:last-child { border-bottom: none; }
+.card-list-item .idx { color: #8b949e; min-width: 28px; text-align: right; user-select: none; }
+.card-list-item .content { color: #c9d1d9; word-break: break-all; flex: 1; }
+.card-list-item .copy-one { color: #58a6ff; cursor: pointer; font-size: 11px; user-select: none; opacity: 0; transition: opacity 0.2s; }
+.card-list-item:hover .copy-one { opacity: 1; }
+
+/* Toolbar */
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.toolbar .btn svg { width: 14px; height: 14px; vertical-align: -2px; }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 60px 20px; color: #8b949e; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+/* Pagination */
+.pagination { display: flex; gap: 6px; justify-content: center; margin-top: 16px; align-items: center; }
+.pagination .page-btn { padding: 6px 12px; border: 1px solid #30363d; border-radius: 4px; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 12px; }
+.pagination .page-btn:hover { border-color: #58a6ff; }
+.pagination .page-btn.active { background: #1f6feb; border-color: #1f6feb; }
+.pagination .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination .page-info { font-size: 12px; color: #8b949e; padding: 0 8px; }
+
+/* Bar chart (CSS only) */
+.bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 160px; padding: 4px 0; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.bar-col .bar { width: 100%; max-width: 30px; background: linear-gradient(180deg, #58a6ff, #1f6feb); border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.3s; position: relative; }
+.bar-col .bar:hover { background: linear-gradient(180deg, #79c0ff, #388bfd); }
+.bar-col .bar-val { font-size: 10px; color: #8b949e; margin-bottom: 2px; white-space: nowrap; }
+.bar-col .bar-label { font-size: 10px; color: #8b949e; margin-top: 4px; white-space: nowrap; transform: rotate(-45deg); transform-origin: center; }
+
+/* Summary cards */
+.summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.summary-card { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 16px; text-align: center; }
+.summary-card .sc-value { font-size: 28px; font-weight: bold; }
+.summary-card .sc-label { font-size: 11px; color: #8b949e; margin-top: 4px; }
+
+/* Balance tiers */
+.balance-tiers { display: flex; gap: 4px; margin-top: 8px; }
+.balance-tier { flex: 1; text-align: center; background: #161b22; border-radius: 6px; padding: 8px 4px; border: 1px solid #21262d; }
+.balance-tier .bt-count { font-size: 18px; font-weight: bold; color: #e6f1ff; }
+.balance-tier .bt-range { font-size: 10px; color: #8b949e; margin-top: 2px; }
+
+/* Checkboxes */
+.check-cell { width: 32px; text-align: center; }
+input[type="checkbox"].row-check { width: 16px; height: 16px; cursor: pointer; accent-color: #1f6feb; }
+
+/* Batch toolbar */
+.batch-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.batch-toolbar select, .batch-toolbar input { padding: 6px 10px; border: 1px solid #30363d; border-radius: 4px; background: #0d1117; color: #c9d1d9; font-size: 12px; }
+.batch-toolbar input[type="number"] { width: 80px; }
+.batch-toolbar input[type="text"] { width: 120px; }
+
+/* Mini modal */
+.mini-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; justify-content: center; align-items: center; }
+.mini-modal.show { display: flex; }
+.mini-modal-box { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; max-width: 380px; width: 90%; }
+.mini-modal-box h4 { color: #58a6ff; margin-bottom: 12px; }
+
+/* Low stock alert */
+.low-stock-alert { border: 1px solid #d2991d; background: #3a351b; }
+.low-stock-alert .sc-value { color: #f0883e; }
+
 /* Utilities */
 .hidden { display: none !important; }
 .text-center { text-align: center; }
@@ -129,7 +244,7 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
 
 <!-- Header -->
 <div class="header">
-  <h1 onclick="switchTab('home')">🎮 卡密商城</h1>
+  <h1 onclick="switchTab('home')">🎮 卡密商城 <span style="font-size:11px;color:#8b949e;font-weight:normal;">v2.1</span></h1>
   <div class="user-bar" id="userBar">
     <a href="#" onclick="switchTab('auth')" style="color:#58a6ff;text-decoration:none;">登录</a>
   </div>
@@ -149,6 +264,8 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
   <button class="nav-btn admin-only hidden" data-tab="admin-promo">🏷️ 优惠码</button>
   <button class="nav-btn admin-only hidden" data-tab="admin-discounts">📉 折扣</button>
   <button class="nav-btn admin-only hidden" data-tab="admin-vip">👑 VIP定价</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-config">⚙️ 站点配置</button>
+  <button class="nav-btn admin-only hidden" data-tab="admin-audit">📝 审计日志</button>
   <button class="nav-btn" onclick="logout()" style="margin-left:auto;">🚪 退出</button>
 </div>
 
@@ -168,6 +285,20 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
       <label>密码</label>
       <input type="text" id="redeemCardPw" placeholder="输入密码">
     </div>
+    <div class="qr-section">
+      <p class="qr-title">📱 购卡服务号</p>
+      <p class="qr-hint">联系客服购买充值卡密 · 长按保存</p>
+      <div class="qr-row">
+        <div class="qr-item">
+          <img src="/static/wx_qrcode.jpg" alt="微信客服" class="qr-img" draggable="false" oncontextmenu="return false">
+          <span class="qr-label">微信</span>
+        </div>
+        <div class="qr-item">
+          <img src="/static/qq_qrcode.jpg" alt="QQ客服" class="qr-img" draggable="false" oncontextmenu="return false">
+          <span class="qr-label">QQ</span>
+        </div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeRedeem()">取消</button>
       <button class="btn btn-primary" onclick="doRedeem()">立即充值</button>
@@ -178,16 +309,28 @@ body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; background: #0
 <!-- Buy Modal -->
 <div class="modal-overlay" id="buyModal">
   <div class="modal-box">
-    <h3>🛒 确认购买</h3>
+    <h3>🛒 下单购买</h3>
     <div id="buyInfo"></div>
     <div class="form-group">
       <label>购买数量</label>
-      <input type="number" id="buyQty" value="1" min="1" onchange="updateBuyTotal()">
+      <input type="number" id="buyQty" value="1" min="1" oninput="updateBuyTotal()" onchange="updateBuyTotal()">
     </div>
-    <p style="color:#8b949e;margin:8px 0;">应付: <span id="buyTotal" style="color:#3fb950;font-weight:bold;">0</span> 元</p>
-    <div class="modal-actions">
+    <div id="discountInfo" style="margin-top:8px;"></div>
+    <div id="buyError" style="display:none;"></div>
+    <!-- 支付确认区（点击创建订单后出现） -->
+    <div id="payConfirm" style="display:none;margin-top:16px;padding:14px;background:#0d1117;border:1px solid #238636;border-radius:8px;">
+      <div id="payDetail" style="font-size:13px;color:#c9d1d9;"></div>
+      <div style="border-top:1px solid #21262d;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#e6f1ff;font-size:15px;font-weight:bold;">应付: <span id="payFinal" style="color:#3fb950;">0</span> 元</span>
+        <span style="color:#8b949e;font-size:11px;">余额: <span id="payBalance">0</span> 元</span>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="closeBuy()">取消</button>
-      <button class="btn btn-primary" onclick="doBuy()">确认购买</button>
+      <button class="btn btn-primary" id="buyBtn" onclick="stepCreateOrder()">创建订单</button>
+    </div>
+    <div class="modal-actions" id="payActions" style="display:none;margin-top:8px;">
+      <button class="btn btn-primary btn-block" id="payBtn" onclick="doPay()">确认支付</button>
     </div>
   </div>
 </div>
@@ -217,6 +360,7 @@ let currentTab = 'home';
 let buyProduct = null;
 let buyPromoCode = null;
 let buyPromoDiscount = 0;
+let buyPriceReady = true;  // 价格计算中禁止购买
 
 const API = (path, opts = {}) => {
   const headers = {'Content-Type': 'application/json'};
@@ -228,10 +372,29 @@ const API = (path, opts = {}) => {
 const VIP_BADGES = {normal:'', vip1:'🥉', vip2:'🥈', svip:'🥇'};
 const VIP_CLASSES = {normal:'vip-normal', vip1:'vip-vip1', vip2:'vip-vip2', svip:'vip-svip'};
 
+function updateBalanceDisplay() {
+  const el = document.querySelector('.bal-amount');
+  if (el) el.textContent = currentUser.balance.toFixed(2);
+}
+
+function escapeJs(str) {
+  if (!str && str !== 0) return '';
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n');
+}
+
+function escapeHtml(str) {
+  if (!str && str !== 0) return '';
+  const s = String(str);
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // ═══════════════════════════════════════════════════
 // Init
 // ═══════════════════════════════════════════════════
 async function init() {
+  // 从URL读取邀请码参数 ?ref=INVXXXX
+  const params = new URLSearchParams(location.search);
+  refInviteCode = params.get('ref') || '';
   const token = localStorage.getItem('shop_token');
   if (token) {
     try {
@@ -270,6 +433,7 @@ let authMode = 'login';
 let verifiedEmail = '';
 let sendCooldown = 0;
 let sendCooldownTimer = null;
+let refInviteCode = '';  // 从URL ?ref= 参数读取的邀请码
 
 function toggleAuth(mode) {
   // 只有真正切换模式时才重置验证状态
@@ -297,6 +461,9 @@ function toggleAuth(mode) {
       <div class="form-group"><label style="display:block;">密码</label><input type="password" id="regPass" placeholder="8位以上，含字母+数字+符号" autocomplete="new-password" oninput="checkPassStrength()"></div>
       <div class="form-group"><label style="display:block;">确认密码</label><input type="password" id="regPass2" placeholder="再次输入密码" autocomplete="new-password" oninput="checkPassMatch()"></div>
       <span id="passHint" style="font-size:11px;color:#8b949e;display:block;margin-top:-10px;margin-bottom:8px;">需包含大写、小写、数字、符号中至少3种</span>
+      <div class="form-group"><label style="display:block;">邀请码 ${refInviteCode ? '<span style="color:#d2991d;font-size:11px;">(已自动填入)</span>' : '<span style="color:#8b949e;font-size:11px;">(选填)</span>'}</label>
+        <input type="text" id="regInviteCode" placeholder="如有邀请码请填写" value="${refInviteCode || ''}" ${refInviteCode ? 'readonly style="background:#1c2128;"' : ''}>
+      </div>
       <div class="form-group"><label style="display:block;">邮箱</label>
         <div class="flex gap-8" style="align-items:flex-end;">
           <input type="email" id="regEmail" placeholder="用于接收验证码" style="flex:1;" value="${verifiedEmail || ''}" oninput="onEmailChanged()">
@@ -471,7 +638,9 @@ async function doRegister() {
 
   let res;
   try {
-    res = await API('/shop/auth/register', {method:'POST', body:JSON.stringify({username, password, email: verifiedEmail})});
+    const inviteCodeEl = document.getElementById('regInviteCode');
+    const invite_code = inviteCodeEl ? inviteCodeEl.value.trim().toUpperCase() : '';
+    res = await API('/shop/auth/register', {method:'POST', body:JSON.stringify({username, password, email: verifiedEmail, invite_code})});
   } catch (e) {
     showMsg('authMsg', '网络错误，请重试', 'error');
     return;
@@ -512,7 +681,8 @@ async function doAuth() {
   }
 }
 
-function logout() {
+async function logout() {
+  try { await API('/shop/auth/logout', {method:'POST'}); } catch(e) {}
   localStorage.removeItem('shop_token');
   currentUser = null;
   showAuth();
@@ -532,9 +702,9 @@ function showApp() {
   const vcls = VIP_CLASSES[vl] || '';
   const vipTag = vl !== 'normal' ? `<span class="vip-badge ${vcls}">${badge} ${vl.toUpperCase()}</span>` : '';
   ub.innerHTML = `
-    <span class="balance">💰 ${currentUser.balance.toFixed(2)} 元</span>
+    <span class="balance">💰 <span class="bal-amount">${currentUser.balance.toFixed(2)}</span> 元${vl !== 'normal' ? ' <span class="vip-badge ' + vcls + '">' + badge + ' ' + vl.toUpperCase() + '</span>' : ''}</span>
     <button class="btn btn-sm btn-primary" onclick="openRedeem()">💳 充值</button>
-    <span style="color:#8b949e;font-size:13px;">👤 ${currentUser.username}${vipTag}${currentUser.is_admin?' <span style="color:#d2991d;">[管理]</span>':''}</span>`;
+    <span style="color:#8b949e;font-size:13px;">👤 ${currentUser.username}${currentUser.is_admin?' <span style="color:#d2991d;">[管理]</span>':''}</span>`;
   document.getElementById('navBar').style.display = 'flex';
 
   // Admin tabs
@@ -569,6 +739,8 @@ function switchTab(tab) {
     case 'admin-promo': renderAdminPromo(); break;
     case 'admin-discounts': renderAdminDiscounts(); break;
     case 'admin-vip': renderAdminVip(); break;
+    case 'admin-config': renderAdminConfig(); break;
+    case 'admin-audit': renderAdminAudit(); break;
   }
 }
 
@@ -578,8 +750,13 @@ function switchTab(tab) {
 async function renderHome() {
   const mc = document.getElementById('mainContent');
   mc.innerHTML = '<div class="loading" style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
-  const res = await API('/shop/products');
-  const products = res.products || [];
+
+  const [prodRes, vipMap] = await Promise.all([
+    API('/shop/products'),
+    fetchVipPriceMap(),
+  ]);
+
+  const products = prodRes.products || [];
   let html = '<h3 style="color:#58a6ff;margin-bottom:16px;">🛍️ 全部商品</h3>';
   if (!products.length) {
     html += '<p style="color:#8b949e;">暂无商品</p>';
@@ -587,12 +764,20 @@ async function renderHome() {
     html += '<div class="product-grid">';
     products.forEach(p => {
       const stock = p.available || 0;
+      const vipPrice = vipMap[p.id] || 0;
+      let priceHtml;
+      if (vipPrice > 0) {
+        priceHtml = `<span class="p-price" style="color:#ffd700;">¥${vipPrice.toFixed(2)}</span>
+          <span style="font-size:11px;color:#8b949e;text-decoration:line-through;margin-left:4px;">¥${p.price.toFixed(2)}</span>`;
+      } else {
+        priceHtml = `<span class="p-price">¥${p.price.toFixed(2)}</span>`;
+      }
       html += `
         <div class="product-card" onclick="openBuy(${p.id}, '${p.name.replace(/'/g,"\\'")}', ${p.price}, ${stock})">
-          <div class="p-name">${p.name}</div>
-          <div class="p-desc">${p.description || p.category_name || ''}</div>
+          <div class="p-name">${escapeHtml(p.name)}</div>
+          <div class="p-desc">${escapeHtml(p.description || p.category_name || '')}</div>
           <div class="p-meta">
-            <span class="p-price">¥${p.price.toFixed(2)}</span>
+            ${priceHtml}
             <span class="p-stock">库存: ${stock}</span>
           </div>
         </div>`;
@@ -600,6 +785,18 @@ async function renderHome() {
     html += '</div>';
   }
   mc.innerHTML = html;
+}
+
+async function fetchVipPriceMap() {
+  const map = {};
+  if (!currentUser) return map;
+  const vl = currentUser.vip_level || 'normal';
+  if (vl === 'normal') return map;
+  try {
+    const res = await API('/shop/vip_prices');
+    (res.prices || []).forEach(p => { map[p.product_id] = p.price; });
+  } catch(e) {}
+  return map;
 }
 
 // ═══════════════════════════════════════════════════
@@ -624,7 +821,7 @@ async function doRedeem() {
   if (res.status === 'ok') {
     showMsg('redeemMsg', res.message, 'success');
     currentUser.balance = res.balance;
-    document.querySelector('.balance').textContent = `💰 ${currentUser.balance.toFixed(2)} 元`;
+    updateBalanceDisplay();
     setTimeout(closeRedeem, 1500);
   } else {
     showMsg('redeemMsg', res.detail || '充值失败', 'error');
@@ -632,65 +829,88 @@ async function doRedeem() {
 }
 
 // ═══════════════════════════════════════════════════
-// Buy
+// Buy — 两步支付流程
 // ═══════════════════════════════════════════════════
+let buyFinalTotal = 0;
+
 async function openBuy(id, name, price, stock) {
   buyProduct = {id, name, price, stock};
   buyPromoCode = null; buyPromoDiscount = 0;
+  buyFinalTotal = 0;
   const vipLevel = currentUser.vip_level || 'normal';
   let displayPrice = price;
   let isVip = false;
 
   if (vipLevel !== 'normal') {
-    // Check VIP price
     try {
-      const vpRes = await API(`/shop/admin/vip_prices?product_id=${id}`);
-      const vpPrices = vpRes.prices || [];
-      const vp = vpPrices.find(p => p.vip_level === vipLevel);
-      if (vp && vp.price > 0) { displayPrice = vp.price; isVip = true; }
+      const vpRes = await API(`/shop/vip_price/${id}`);
+      if (vpRes.is_vip && vpRes.vip_price > 0) { displayPrice = vpRes.vip_price; isVip = true; }
     } catch(e) {}
   }
 
-  let infoHtml = `<p>商品: <b style="color:#e6f1ff;">${name}</b></p>`;
+  let infoHtml = `<p>商品: <b style="color:#e6f1ff;">${escapeHtml(name)}</b></p>`;
   if (isVip) {
     infoHtml += `<p>VIP价格: <b style="color:#ffd700;">¥${displayPrice.toFixed(2)}</b> <span class="tag tag-yellow">${vipLevel.toUpperCase()}</span></p>`;
   } else {
     infoHtml += `<p>单价: <b style="color:#3fb950;">¥${displayPrice.toFixed(2)}</b></p>`;
   }
-  infoHtml += `<p>库存: ${stock}</p><div id="discountInfo" style="margin-top:8px;"></div>`;
+  infoHtml += `<p>库存: ${stock}</p>`;
 
   // Promo input for non-VIP
   if (!isVip) {
-    infoHtml += `<div class="discount-row"><input type="text" id="promoInput" placeholder="优惠码" style="flex:1;padding:8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#c9d1d9;"><button class="btn btn-sm btn-primary" onclick="applyPromo()">验证</button></div><span id="promoHint" style="font-size:12px;display:block;margin-top:4px;"></span>`;
+    infoHtml += `<div class="discount-row" style="margin-top:8px;"><input type="text" id="promoInput" placeholder="优惠码（选填）" style="flex:1;padding:8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#c9d1d9;font-size:13px;"><button class="btn btn-sm btn-primary" onclick="applyPromo()">验证</button></div><span id="promoHint" style="font-size:12px;display:block;margin-top:4px;"></span>`;
   }
 
   buyProduct.displayPrice = displayPrice;
   buyProduct.isVip = isVip;
+
   document.getElementById('buyInfo').innerHTML = infoHtml;
+  document.getElementById('buyError').style.display = 'none';
+  document.getElementById('buyError').innerHTML = '';
+  document.getElementById('payConfirm').style.display = 'none';
+  document.getElementById('payActions').style.display = 'none';
+  document.getElementById('buyBtn').style.display = '';
+  document.getElementById('buyBtn').textContent = '创建订单';
   document.getElementById('buyQty').value = 1;
   document.getElementById('buyQty').max = stock;
+  document.getElementById('buyQty').oninput = updateBuyTotal;
   document.getElementById('buyQty').onchange = updateBuyTotal;
+  document.getElementById('discountInfo').innerHTML = '';
   updateBuyTotal();
   document.getElementById('buyModal').classList.add('show');
 }
 
-function closeBuy() { document.getElementById('buyModal').classList.remove('show'); buyProduct = null; }
+function closeBuy() {
+  document.getElementById('buyModal').classList.remove('show');
+  buyProduct = null; buyFinalTotal = 0;
+}
 
 async function updateBuyTotal() {
-  const qty = parseInt(document.getElementById('buyQty').value) || 1;
-  let total = (buyProduct.displayPrice || buyProduct.price) * qty;
-  const discDiv = document.getElementById('discountInfo');
-  if (discDiv && !buyProduct.isVip) {
-    const res = await API(`/shop/products/${buyProduct.id}/discount?quantity=${qty}`);
-    let html = '';
-    if (res.single) html += `<span class="discount-tag">单次满${res.single.min_quantity}件享${res.single.discount_percent}%折扣</span> `;
-    if (res.cumulative) html += `<span class="discount-tag">累计满${res.cumulative.min_quantity}件享${res.cumulative.discount_percent}%折扣</span>`;
-    discDiv.innerHTML = html;
-    const bestPct = Math.max(res.single?.discount_percent||0, res.cumulative?.discount_percent||0);
-    if (bestPct > 0) total = total * (1 - bestPct / 100);
+  buyPriceReady = false;
+  const btn = document.getElementById('buyBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '计算中...'; }
+  try {
+    const qty = parseInt(document.getElementById('buyQty').value) || 1;
+    let subtotal = (buyProduct.displayPrice || buyProduct.price) * qty;
+    let total = subtotal;
+    const discDiv = document.getElementById('discountInfo');
+    let discountPct = 0;
+    if (discDiv && !buyProduct.isVip) {
+      const res = await API(`/shop/products/${buyProduct.id}/discount?quantity=${qty}`);
+      let html = '';
+      if (res.single) html += `<span class="discount-tag">单次满${res.single.min_quantity}件享${res.single.discount_percent}%折扣</span> `;
+      if (res.cumulative) html += `<span class="discount-tag">累计满${res.cumulative.min_quantity}件享${res.cumulative.discount_percent}%折扣</span>`;
+      discDiv.innerHTML = html;
+      discountPct = Math.max(res.single?.discount_percent||0, res.cumulative?.discount_percent||0);
+      if (discountPct > 0) total = subtotal * (1 - discountPct / 100);
+    }
+    total = Math.round(Math.max(0, total - buyPromoDiscount) * 100) / 100;
+    buyFinalTotal = total;
+    document.getElementById('buyBtn').textContent = `创建订单 ¥${total.toFixed(2)}`;
+  } finally {
+    buyPriceReady = true;
+    if (btn) btn.disabled = false;
   }
-  total = Math.max(0, total - buyPromoDiscount);
-  document.getElementById('buyTotal').textContent = total.toFixed(2);
 }
 
 async function applyPromo() {
@@ -707,68 +927,399 @@ async function applyPromo() {
   } else {
     hint.innerHTML = '❌ ' + (res.detail||'无效'); hint.style.color = '#f85149';
     buyPromoCode = null; buyPromoDiscount = 0;
+    updateBuyTotal();
   }
 }
 
-async function doBuy() {
+function stepCreateOrder() {
+  if (!buyPriceReady) return;
   const qty = parseInt(document.getElementById('buyQty').value) || 1;
-  const body = {product_id: buyProduct.id, quantity: qty};
-  if (buyPromoCode) body.promo_code = buyPromoCode;
-  const res = await API('/shop/orders', {method:'POST', body:JSON.stringify(body)});
-  if (res.status === 'ok') {
-    currentUser.balance = res.balance;
-    document.querySelector('.balance').textContent = `💰 ${currentUser.balance.toFixed(2)} 元`;
-    closeBuy();
-    let html = `<h3 style="color:#3fb950;">✅ 购买成功！</h3>
-      <p style="color:#8b949e;">订单号: #${res.order.id} | 消费: ${res.order.total_price.toFixed(2)} 元</p>`;
-    if (res.order.discount > 0) html += `<p style="color:#d2991d;">优惠: -¥${res.order.discount.toFixed(2)}</p>`;
-    (res.cards||[]).forEach(c => {
-      html += `<div class="card-detail"><div class="field"><span>📧 账号</span><span class="val">${c.account}</span></div><div class="field"><span>🔑 密码</span><span class="val">${c.password}</span></div>${c.recovery_email?`<div class="field"><span>📧 恢复</span><span class="val">${c.recovery_email}</span></div>`:''}</div>`;
-    });
-    html += `<button class="btn btn-primary mt-16" onclick="switchTab('orders')">查看订单</button>`;
-    document.getElementById('mainContent').innerHTML = `<div class="card">${html}</div>`;
-  } else { alert(res.detail || '购买失败'); }
+  if (qty < 1) return;
+  const unitPrice = buyProduct.displayPrice || buyProduct.price;
+  const subtotal = unitPrice * qty;
+
+  // 构建支付明细
+  let detail = `<div style="margin-bottom:6px;">${escapeHtml(buyProduct.name)} × ${qty}`;
+  if (buyProduct.isVip) {
+    detail += ` <span style="color:#ffd700;">VIP价 ¥${unitPrice.toFixed(2)}</span>`;
+  }
+  detail += ` = <b>¥${subtotal.toFixed(2)}</b></div>`;
+
+  if (buyPromoDiscount > 0) {
+    detail += `<div style="color:#d2991d;">优惠码 -¥${buyPromoDiscount.toFixed(2)}</div>`;
+  }
+
+  document.getElementById('payDetail').innerHTML = detail;
+  document.getElementById('payFinal').textContent = buyFinalTotal.toFixed(2);
+  document.getElementById('payBalance').textContent = currentUser.balance.toFixed(2);
+
+  // 余额不足红色提示
+  if (currentUser.balance < buyFinalTotal) {
+    document.getElementById('payBalance').style.color = '#f85149';
+  } else {
+    document.getElementById('payBalance').style.color = '#8b949e';
+  }
+
+  // 隐藏创建订单，显示支付确认 + 支付按钮
+  document.getElementById('buyBtn').style.display = 'none';
+  document.getElementById('payConfirm').style.display = '';
+  document.getElementById('payActions').style.display = '';
+  document.getElementById('payBtn').textContent = `确认支付 ¥${buyFinalTotal.toFixed(2)}`;
+  document.getElementById('buyError').style.display = 'none';
+}
+
+async function doPay() {
+  const btn = document.getElementById('payBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '支付中...'; }
+  const errEl = document.getElementById('buyError');
+  errEl.style.display = 'none';
+  try {
+    const qty = parseInt(document.getElementById('buyQty').value) || 1;
+    const body = {product_id: buyProduct.id, quantity: qty};
+    if (buyPromoCode) body.promo_code = buyPromoCode;
+    const res = await API('/shop/orders', {method:'POST', body:JSON.stringify(body)});
+    if (res.status === 'ok') {
+      currentUser.balance = res.balance;
+      updateBalanceDisplay();
+      closeBuy();
+      currentTab = 'orders';
+      await goToOrderDetail(res.order.id);
+    } else {
+      errEl.innerHTML = '❌ ' + (res.detail || '支付失败');
+      errEl.style.display = '';
+      errEl.style.color = '#f85149';
+    }
+  } catch(e) {
+    errEl.innerHTML = '❌ 网络错误，请重试';
+    errEl.style.display = '';
+    errEl.style.color = '#f85149';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '确认支付'; }
+  }
 }
 
 // ═══════════════════════════════════════════════════
 // Orders
 // ═══════════════════════════════════════════════════
+const ORDER_STATUS_MAP = {
+  'paid': '已完成',
+  'pending': '待付款',
+  'shipped': '待发货',
+  'completed': '已完成',
+};
+const ORDER_TABS = [
+  { key: 'pending', label: '待付款' },
+  { key: 'shipped', label: '待发货' },
+  { key: '', label: '全部' },
+  { key: 'paid', label: '已完成' },
+];
+
+let ordersState = { tab: '', search: '', page: 1, total: 0, data: [], qqContact: '' };
+
 async function renderOrders() {
   const mc = document.getElementById('mainContent');
   mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
-  const res = await API('/shop/orders');
-  const orders = res.orders || [];
+
+  // Load site config for QQ
+  try {
+    const cfgRes = await API('/shop/config');
+    if (cfgRes.status === 'ok') ordersState.qqContact = cfgRes.config.qq_contact || '';
+  } catch (e) {}
+
+  await loadOrders();
+}
+
+async function loadOrders() {
+  const mc = document.getElementById('mainContent');
+  const { tab, search, page } = ordersState;
+  let url = `/shop/orders?page=${page}&page_size=20`;
+  if (tab) url += `&status=${tab}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+
+  const res = await API(url);
+  ordersState.data = res.orders || [];
+  ordersState.total = res.total || 0;
+
   let html = '<h3 style="color:#58a6ff;margin-bottom:16px;">📦 我的订单</h3>';
-  if (!orders.length) { html += '<p style="color:#8b949e;">暂无订单</p>'; }
-  else {
-    orders.forEach(o => {
-      const cards = o.cards || [];
-      const hasDiscount = o.discount_amount > 0;
-      html += `<div class="order-card" onclick="this.querySelector('.order-cards').classList.toggle('hidden')">
-        <div class="order-header">
-          <div><b style="color:#e6f1ff;">#${o.id}</b> <span style="color:#c9d1d9;">${o.product_name}</span>
-            <span style="color:#8b949e;margin-left:8px;">x${o.quantity}</span>
-            ${o.promo_code ? `<span class="tag tag-yellow">${o.promo_code}</span>` : ''}
-            ${hasDiscount ? `<span style="color:#d2991d;margin-left:8px;">-¥${o.discount_amount.toFixed(2)}</span>` : ''}
+
+  // Tabs
+  html += '<div class="order-tabs">';
+  ORDER_TABS.forEach(t => {
+    const active = t.key === tab ? ' active' : '';
+    html += `<button class="order-tab${active}" onclick="switchOrderTab('${t.key}')">${t.label}</button>`;
+  });
+  html += '</div>';
+
+  // Search
+  html += `<div class="search-bar">
+    <input type="text" id="orderSearch" placeholder="搜索订单号或商品名称..." value="${search.replace(/"/g,'&quot;')}" onkeydown="if(event.key==='Enter')searchOrders()">
+    <button class="btn btn-primary btn-sm" onclick="searchOrders()">🔍 搜索</button>
+    ${search ? '<button class="btn btn-sm" onclick="clearSearch()">✕ 清除</button>' : ''}
+  </div>`;
+
+  // Table
+  if (!ordersState.data.length) {
+    html += `<div class="empty-state"><div class="icon">📭</div><p>暂无${tab ? ORDER_STATUS_MAP[tab] || tab : ''}订单</p></div>`;
+  } else {
+    html += '<div style="overflow-x:auto;"><table class="order-table"><thead><tr>';
+    html += '<th>宝贝</th><th>单价</th><th>数量</th><th>实际付款</th><th>交易状态</th><th>交易操作</th>';
+    html += '</tr></thead><tbody>';
+
+    ordersState.data.forEach(o => {
+      const statusLabel = ORDER_STATUS_MAP[o.status] || o.status || '已完成';
+      const statusCls = o.status === 'paid' || o.status === 'completed' ? 'status-completed' : 'status-unfinished';
+      const hasDiscount = (o.discount_amount || 0) > 0;
+
+      html += `<tr>
+        <td>
+          <div style="font-weight:600;color:#e6f1ff;">${escapeHtml(o.product_name)}</div>
+          <div style="font-size:11px;color:#8b949e;">订单号: ${o.order_no || '#' + o.id}</div>
+          ${o.promo_code ? `<span class="tag tag-yellow" style="font-size:10px;">${escapeHtml(o.promo_code)}</span>` : ''}
+        </td>
+        <td>¥${(o.unit_price || 0).toFixed(2)}</td>
+        <td>x${o.quantity}</td>
+        <td>
+          <span style="color:#3fb950;font-weight:bold;">¥${(o.total_price || 0).toFixed(2)}</span>
+          ${hasDiscount ? `<div style="font-size:11px;color:#d2991d;">优惠 -¥${(o.discount_amount||0).toFixed(2)}</div>` : ''}
+        </td>
+        <td>
+          <span class="order-status ${statusCls}">${statusLabel}</span>
+          <div class="action-links" style="margin-top:4px;">
+            <a onclick="goToOrderDetail(${o.id})">📋 订单详情</a>
+            ${ordersState.qqContact ? `<span class="divider">|</span><a class="btn-qq" href="https://wpa.qq.com/msgrd?v=3&uin=${ordersState.qqContact}&site=qq&menu=yes" target="_blank">🐧 联系客服</a>` : ''}
           </div>
-          <div><span style="color:#3fb950;font-weight:bold;">¥${o.total_price.toFixed(2)}</span>
-            <span style="color:#8b949e;margin-left:8px;font-size:12px;">${o.created_at}</span></div>
-        </div>
-        <div class="order-cards hidden" onclick="event.stopPropagation()">
-          <h4 style="color:#58a6ff;font-size:13px;margin-bottom:8px;">🎁 账号信息</h4>`;
-      cards.forEach(c => {
-        html += `<div class="card-detail"><div class="field"><span>📧 账号</span><span class="val">${c.account}</span></div><div class="field"><span>🔑 密码</span><span class="val">${c.password}</span></div>${c.recovery_email?`<div class="field"><span>📧 恢复</span><span class="val">${c.recovery_email}</span></div>`:''}</div>`;
-      });
-      html += `<button class="btn btn-sm mt-8" onclick="copyOrder(${o.id})">📋 复制</button></div></div>`;
+        </td>
+        <td>
+          <button class="btn btn-sm btn-primary" onclick="rebuyProduct(${o.product_id},'${o.product_name.replace(/'/g,"\\'")}', ${(o.unit_price||0).toFixed(2)})">🔄 再次购买</button>
+          <button class="btn btn-sm" style="margin-top:4px;" onclick="goToOrderDetail(${o.id})">👁️ 查看卡密</button>
+        </td>
+      </tr>`;
     });
+    html += '</tbody></table></div>';
+
+    // Pagination
+    const totalPages = Math.ceil(ordersState.total / 20);
+    if (totalPages > 1) {
+      html += '<div class="pagination">';
+      html += `<button class="page-btn" onclick="goPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>‹ 上一页</button>`;
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || Math.abs(i - page) <= 2) {
+          html += `<button class="page-btn${i === page ? ' active' : ''}" onclick="goPage(${i})">${i}</button>`;
+        } else if (i === 2 || i === totalPages - 1) {
+          html += '<span class="page-info">...</span>';
+        }
+      }
+      html += `<button class="page-btn" onclick="goPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>下一页 ›</button>`;
+      html += `<span class="page-info">共 ${ordersState.total} 条</span>`;
+      html += '</div>';
+    }
   }
+
   mc.innerHTML = html;
 }
 
+function switchOrderTab(key) {
+  ordersState.tab = key;
+  ordersState.page = 1;
+  loadOrders();
+}
+
+function searchOrders() {
+  ordersState.search = document.getElementById('orderSearch')?.value.trim() || '';
+  ordersState.page = 1;
+  loadOrders();
+}
+
+function clearSearch() {
+  ordersState.search = '';
+  ordersState.page = 1;
+  loadOrders();
+}
+
+function goPage(p) {
+  const totalPages = Math.ceil(ordersState.total / 20);
+  if (p < 1 || p > totalPages) return;
+  ordersState.page = p;
+  loadOrders();
+  document.getElementById('mainContent').scrollIntoView({ behavior: 'smooth' });
+}
+
+function rebuyProduct(id, name, price) {
+  // Navigate to home and open buy modal
+  switchTab('home');
+  setTimeout(() => openBuy(id, name, parseFloat(price), 999), 300);
+}
+
+// ═══════════════════════════════════════════════════
+// Order Detail Page
+// ═══════════════════════════════════════════════════
+async function goToOrderDetail(orderId) {
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
+
+  const res = await API(`/shop/orders/${orderId}`);
+  if (res.status !== 'ok') { mc.innerHTML = '<div class="empty-state"><p>订单不存在</p><button class="btn mt-16" onclick="switchTab(\'orders\')">← 返回订单列表</button></div>'; return; }
+
+  const order = res.order;
+  const cards = res.cards || [];
+  const statusLabel = ORDER_STATUS_MAP[order.status] || order.status || '已完成';
+  const hasDiscount = (order.discount_amount || 0) > 0;
+
+  let html = '<div class="order-detail-header">';
+  const orderDisplayNo = order.order_no || '#' + order.id;
+  html += `<h3 style="color:#58a6ff;margin:0;">📋 订单详情 ${orderDisplayNo}</h3>`;
+  html += '<button class="btn" onclick="switchTab(\'orders\')">← 返回订单列表</button>';
+  html += '</div>';
+
+  // Meta info
+  html += '<div class="order-detail-meta">';
+  html += `<div class="meta-item"><div class="meta-label">订单编号</div><div class="meta-value">${orderDisplayNo}</div></div>`;
+  html += `<div class="meta-item"><div class="meta-label">商品名称</div><div class="meta-value" style="font-size:14px;">${escapeHtml(order.product_name)}</div></div>`;
+  html += `<div class="meta-item"><div class="meta-label">交易状态</div><div class="meta-value" style="font-size:14px;"><span class="order-status status-completed">${statusLabel}</span></div></div>`;
+  html += `<div class="meta-item"><div class="meta-label">购买数量</div><div class="meta-value">${order.quantity} 件</div></div>`;
+  html += `<div class="meta-item"><div class="meta-label">单价</div><div class="meta-value" style="color:#3fb950;">¥${(order.unit_price || 0).toFixed(2)}</div></div>`;
+  html += `<div class="meta-item"><div class="meta-label">实际付款</div><div class="meta-value" style="color:#3fb950;">¥${(order.total_price || 0).toFixed(2)}${hasDiscount ? ` <span style="font-size:11px;color:#d2991d;">(优惠¥${(order.discount_amount||0).toFixed(2)})</span>` : ''}</div></div>`;
+  html += `<div class="meta-item"><div class="meta-label">创建时间</div><div class="meta-value" style="font-size:13px;">${order.created_at || '-'}</div></div>`;
+  if (order.promo_code) {
+    html += `<div class="meta-item"><div class="meta-label">优惠码</div><div class="meta-value" style="font-size:14px;"><span class="tag tag-yellow">${escapeHtml(order.promo_code)}</span></div></div>`;
+  }
+  html += '</div>';
+
+  // Card list
+  html += '<div class="card-list">';
+  html += '<div class="card-list-header">';
+  html += `<h4 style="color:#e6f1ff;margin:0;font-size:14px;">🎁 账号卡密 (共 ${cards.length} 条)</h4>`;
+  html += '</div>';
+  html += '<div class="card-list-body" id="cardListBody">';
+
+  if (!cards.length) {
+    html += '<p style="color:#8b949e;text-align:center;padding:20px;">暂无卡密数据</p>';
+  } else {
+    cards.forEach((c, i) => {
+      const line = `${escapeHtml(c.account)}----${escapeHtml(c.password)}${c.recovery_email ? '----' + escapeHtml(c.recovery_email) : ''}`;
+      html += `<div class="card-list-item">
+        <span class="idx">${i + 1}.</span>
+        <span class="content">${line}</span>
+        <span class="copy-one" onclick="copySingleCard(${i})" title="复制此行">📋</span>
+      </div>`;
+    });
+  }
+  html += '</div>';
+  html += '</div>';
+
+  // Toolbar
+  html += '<div class="toolbar">';
+  html += `<button class="btn btn-primary" onclick="downloadAllCards(${order.id})">📥 下载全部</button>`;
+  html += `<button class="btn" onclick="downloadSplitCards(${order.id})">📑 拆分下载</button>`;
+  html += `<button class="btn" onclick="copyAllCards(${order.id})">📋 全部复制</button>`;
+  html += '</div>';
+
+  // Store cards data globally for download/copy functions
+  window._orderDetailCards = cards;
+  window._orderDetailOrder = order;
+
+  html += '<button class="btn mt-16" onclick="switchTab(\'orders\')">← 返回订单列表</button>';
+
+  mc.innerHTML = html;
+}
+
+function _formatCardLine(c) {
+  return `${c.account}----${c.password}${c.recovery_email ? '----' + c.recovery_email : ''}`;
+}
+
+function _getOrderFileName(order, suffix) {
+  const date = (order.created_at || '').replace(/[:\s]/g, '-').slice(0, 16);
+  const no = order.order_no || order.id;
+  return `订单${no}_${order.product_name}_${order.quantity}件_${date}${suffix || ''}.txt`;
+}
+
+function _downloadTxt(filename, content) {
+  const bom = '﻿'; // UTF-8 BOM to prevent garbled characters
+  const blob = new Blob([bom + content], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function downloadAllCards(orderId) {
+  const cards = window._orderDetailCards || [];
+  const order = window._orderDetailOrder || {};
+  if (!cards.length) { alert('无卡密可下载'); return; }
+
+  const lines = cards.map((c, i) => `${i + 1}. ${_formatCardLine(c)}`);
+  const orderNo = order.order_no || ('#' + orderId);
+  const content = `订单 ${orderNo} — ${order.product_name || ''}\n`;
+  const content2 = `创建时间: ${order.created_at || '-'}\n`;
+  const content3 = `数量: ${order.quantity || cards.length} 件 | 总价: ¥${(order.total_price || 0).toFixed(2)}\n`;
+  const content4 = `${'='.repeat(50)}\n\n${lines.join('\n')}`;
+  const filename = _getOrderFileName(order, '_全部');
+  _downloadTxt(filename, content + content2 + content3 + content4);
+}
+
+function downloadSplitCards(orderId) {
+  const cards = window._orderDetailCards || [];
+  const order = window._orderDetailOrder || {};
+  if (!cards.length) { alert('无卡密可下载'); return; }
+
+  cards.forEach((c, i) => {
+    const line = _formatCardLine(c);
+    const orderNo = order.order_no || ('#' + orderId);
+  const content = `订单 ${orderNo} — ${order.product_name || ''}\n`;
+    const content2 = `序号: ${i + 1}/${cards.length}\n`;
+    const content3 = `${'='.repeat(50)}\n\n账号: ${c.account}\n密码: ${c.password}${c.recovery_email ? '\n辅助邮箱: ' + c.recovery_email : ''}\n`;
+    const filename = _getOrderFileName(order, `_${i + 1}`);
+    // Small delay to allow multiple downloads
+    setTimeout(() => _downloadTxt(filename, content + content2 + content3), i * 150);
+  });
+}
+
+function copyAllCards(orderId) {
+  const cards = window._orderDetailCards || [];
+  if (!cards.length) { alert('无卡密可复制'); return; }
+
+  const lines = cards.map((c, i) => `${i + 1}. ${_formatCardLine(c)}`);
+  const text = lines.join('\n');
+
+  navigator.clipboard.writeText(text).then(() => {
+    // Show a brief toast
+    const toast = document.createElement('div');
+    toast.textContent = `✅ 已复制 ${cards.length} 条卡密`;
+    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1b3a1b;color:#3fb950;padding:10px 24px;border-radius:8px;z-index:9999;font-size:14px;border:1px solid #238636;';
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 2000);
+  }).catch(() => {
+    // Fallback: select text in a textarea
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert(`已复制 ${cards.length} 条卡密`);
+  });
+}
+
+function copySingleCard(idx) {
+  const cards = window._orderDetailCards || [];
+  const c = cards[idx];
+  if (!c) return;
+  const line = _formatCardLine(c);
+  navigator.clipboard.writeText(line).then(() => {
+    const el = document.querySelectorAll('.copy-one')[idx];
+    if (el) { el.textContent = '✅'; setTimeout(() => { el.textContent = '📋'; }, 1200); }
+  }).catch(() => {});
+}
+
+// Legacy support
 async function copyOrder(id) {
   const res = await API(`/shop/orders/${id}`);
   if (res.status !== 'ok') return;
-  const text = (res.cards||[]).map(c => `账号: ${c.account}  密码: ${c.password}${c.recovery_email?'  恢复: '+c.recovery_email:''}`).join('\n');
+  const text = (res.cards || []).map(c => `账号: ${c.account}  密码: ${c.password}${c.recovery_email ? '  恢复: ' + c.recovery_email : ''}`).join('\n');
   navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板'));
 }
 
@@ -793,7 +1344,7 @@ async function renderRecords() {
     html += '<p style="color:#8b949e;">暂无消费记录</p>';
   } else {
     html += '<table class="table"><thead><tr><th>商品</th><th>金额</th><th>时间</th></tr></thead><tbody>';
-    res.consumptions.forEach(r => { html += `<tr><td>${r.product_name}</td><td style="color:#f85149;">-${r.total_price.toFixed(2)}</td><td>${r.created_at}</td></tr>`; });
+    res.consumptions.forEach(r => { html += `<tr><td>${escapeHtml(r.product_name)}</td><td style="color:#f85149;">-${r.total_price.toFixed(2)}</td><td>${r.created_at}</td></tr>`; });
     html += '</tbody></table>';
   }
   mc.innerHTML = html;
@@ -807,19 +1358,102 @@ async function renderAdminDashboard() {
   mc.innerHTML = '<div class="loading" style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
   const res = await API('/shop/admin/dashboard');
   const d = res.dashboard || {};
+  const t = d.today || {};
+  const bo = d.balance_overview || {};
+
   let html = '<h3 style="color:#d2991d;margin-bottom:16px;">📊 管理仪表盘</h3>';
-  html += `<div class="stats">
-    <div class="stat-item"><div class="stat-value">${d.today_orders||0}</div><div class="stat-label">今日订单</div></div>
-    <div class="stat-item"><div class="stat-value" style="color:#3fb950;">${(d.today_revenue||0).toFixed(2)}</div><div class="stat-label">今日收入</div></div>
-    <div class="stat-item"><div class="stat-value" style="color:#58a6ff;">${(d.today_recharge||0).toFixed(2)}</div><div class="stat-label">今日充值</div></div>
-    <div class="stat-item"><div class="stat-value">${d.total_users||0}</div><div class="stat-label">总用户数</div></div>
-  </div>`;
-  html += `<p>充值卡: 总计 ${d.total_cards||0} / 未使用 <span style="color:#3fb950;">${d.unused_cards||0}</span></p>`;
+
+  // ── 1. 今日概览 ──
+  html += '<h4 style="color:#58a6ff;margin-bottom:10px;font-size:14px;">📅 今日概览</h4>';
+  html += '<div class="summary-cards">';
+  html += `<div class="summary-card"><div class="sc-value">${t.orders||0}</div><div class="sc-label">订单数</div></div>`;
+  html += `<div class="summary-card"><div class="sc-value" style="color:#3fb950;">¥${(t.revenue||0).toFixed(2)}</div><div class="sc-label">收入</div></div>`;
+  html += `<div class="summary-card"><div class="sc-value" style="color:#58a6ff;">${t.consumers||0}</div><div class="sc-label">消费人数</div></div>`;
+  html += `<div class="summary-card"><div class="sc-value" style="color:#d2991d;">${t.new_users||0}</div><div class="sc-label">新增用户</div></div>`;
+  html += `<div class="summary-card"><div class="sc-value" style="color:#a371f7;">¥${(t.recharge||0).toFixed(2)}</div><div class="sc-label">今日充值</div></div>`;
   if (d.low_stock?.length) {
-    html += '<h4 style="color:#f85149;margin:16px 0 8px;">⚠️ 库存告急</h4>';
-    d.low_stock.forEach(s => { html += `<p style="color:#f85149;">${s.name}: 仅剩 ${s.cnt} 件</p>`; });
+    html += '<div class="summary-card low-stock-alert">';
+    html += `<div class="sc-value" style="color:#f0883e;font-size:18px;">⚠️</div>`;
+    html += `<div class="sc-label">库存告急: ${d.low_stock.map(s => s.name+'('+s.cnt+')').join(', ')}</div></div>`;
   }
+  html += '</div>';
+
+  // ── 2. 商品销量 ──
+  html += '<h4 style="color:#58a6ff;margin:20px 0 10px;font-size:14px;">🛍️ 今日商品销量</h4>';
+  if (!d.product_sales?.length) {
+    html += '<p style="color:#8b949e;font-size:13px;">暂无数据</p>';
+  } else {
+    html += '<table class="table"><thead><tr><th>商品</th><th>销量</th><th>收入</th></tr></thead><tbody>';
+    d.product_sales.forEach(p => {
+      html += `<tr><td>${escapeHtml(p.name)}</td><td>${p.count}</td><td style="color:#3fb950;">¥${(p.revenue||0).toFixed(2)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  // ── 3. 消费排行 ──
+  html += '<h4 style="color:#58a6ff;margin:20px 0 10px;font-size:14px;">👤 今日消费排行</h4>';
+  if (!d.top_consumers?.length) {
+    html += '<p style="color:#8b949e;font-size:13px;">暂无数据</p>';
+  } else {
+    html += '<table class="table"><thead><tr><th>用户</th><th>订单数</th><th>消费</th></tr></thead><tbody>';
+    d.top_consumers.forEach(c => {
+      html += `<tr><td>${escapeHtml(c.username)}</td><td>${c.orders}</td><td style="color:#3fb950;">¥${(c.spent||0).toFixed(2)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  // ── 4. 余额概览 ──
+  html += '<h4 style="color:#58a6ff;margin:20px 0 10px;font-size:14px;">💰 余额概览</h4>';
+  html += `<div class="summary-cards" style="grid-template-columns:repeat(3,1fr);">`;
+  html += `<div class="summary-card"><div class="sc-value" style="color:#3fb950;">¥${(bo.total||0).toFixed(2)}</div><div class="sc-label">总余额</div></div>`;
+  html += `<div class="summary-card"><div class="sc-value" style="color:#58a6ff;">¥${(bo.avg||0).toFixed(2)}</div><div class="sc-label">人均余额 (${bo.users||0}人)</div></div>`;
+  html += `<div class="summary-card"><div class="sc-value">${bo.users||0}</div><div class="sc-label">总用户数</div></div>`;
+  html += '</div>';
+  // Tiers
+  if (bo.tiers) {
+    html += '<div class="balance-tiers">';
+    Object.entries(bo.tiers).forEach(([k, v]) => {
+      html += `<div class="balance-tier"><div class="bt-count">${v}</div><div class="bt-range">¥${k}</div></div>`;
+    });
+    html += '</div>';
+  }
+
+  // ── 5. 近7天趋势 ──
+  html += '<h4 style="color:#58a6ff;margin:20px 0 10px;font-size:14px;">📈 近7天收入趋势</h4>';
+  html += _renderBarChart(d.weekly?.revenues || [], d.weekly?.days || [], 0);
+
+  // ── 6. 本月逐日 ──
+  html += '<h4 style="color:#58a6ff;margin:20px 0 10px;font-size:14px;">📅 本月逐日收入</h4>';
+  html += _renderBarChart(d.monthly_daily?.revenues || [], d.monthly_daily?.days || [], 0);
+
+  // ── 7. 逐月统计 ──
+  html += '<h4 style="color:#58a6ff;margin:20px 0 10px;font-size:14px;">📊 逐月统计</h4>';
+  if (d.yearly_monthly?.months?.length) {
+    html += '<table class="table"><thead><tr><th>月份</th><th>订单数</th><th>收入</th></tr></thead><tbody>';
+    d.yearly_monthly.months.forEach((m, i) => {
+      html += `<tr><td>${m}</td><td>${d.yearly_monthly.orders[i]||0}</td><td style="color:#3fb950;">¥${(d.yearly_monthly.revenues[i]||0).toFixed(2)}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
   mc.innerHTML = html;
+}
+
+// ── Bar chart helper ──
+function _renderBarChart(values, labels, _maxVal) {
+  if (!values.length) return '<p style="color:#8b949e;font-size:13px;">暂无数据</p>';
+  const max = _maxVal || Math.max(...values, 1);
+  let html = '<div class="bar-chart">';
+  values.forEach((v, i) => {
+    const pct = Math.max(2, Math.round((v / max) * 100));
+    html += `<div class="bar-col">
+      <span class="bar-val">${v > 0 ? v.toFixed ? v.toFixed(0) : v : ''}</span>
+      <div class="bar" style="height:${pct}%" title="${labels[i]}: ${v}"></div>
+      <span class="bar-label">${labels[i]||''}</span>
+    </div>`;
+  });
+  html += '</div>';
+  return html;
 }
 
 // ═══════════════════════════════════════════════════
@@ -925,15 +1559,19 @@ async function renderAdminProducts() {
 }
 
 async function loadProducts() {
-  const res = await API('/shop/products');
+  const res = await API('/shop/admin/products');
   let html = '<table class="table"><thead><tr><th>ID</th><th>名称</th><th>分类</th><th>价格</th><th>库存</th><th>状态</th><th>操作</th></tr></thead><tbody>';
   (res.products||[]).forEach(p => {
+    const statusTag = p.is_active ? '<span class="tag tag-green">上架</span>' : '<span class="tag tag-red">下架</span>';
     html += `<tr>
-      <td>${p.id}</td><td>${p.name}</td><td>${p.category_name||'-'}</td>
+      <td>${p.id}</td><td>${escapeHtml(p.name)}</td><td>${p.category_name||'-'}</td>
       <td style="color:#3fb950;">${(p.price||0).toFixed(2)}</td><td>${p.available||0}</td>
-      <td>${p.is_active ? '<span class="tag tag-green">上架</span>' : '<span class="tag tag-red">下架</span>'}</td>
-      <td><button class="btn btn-sm" onclick="editProduct(${p.id},'${p.name.replace(/'/g,"\\'")}',${p.price},${p.category_id||0})">编辑</button>
-      ${p.is_active ? `<button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">下架</button>` : ''}</td></tr>`;
+      <td>${statusTag}</td>
+      <td>
+        <button class="btn btn-sm" onclick="editProduct(${p.id},'${p.name.replace(/'/g,"\\'")}',${p.price},${p.category_id||0})">编辑</button>
+        <button class="btn btn-sm" onclick="toggleProduct(${p.id})">${p.is_active ? '⬇️下架' : '⬆️上架'}</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id},'${p.name.replace(/'/g,"\\'")}')">🗑️删除</button>
+      </td></tr>`;
   });
   html += '</tbody></table>';
   document.getElementById('prodList').innerHTML = html;
@@ -965,10 +1603,17 @@ async function editProduct(id, oldName, oldPrice, oldCat) {
   if (res.status === 'ok') { loadProducts(); } else { alert(res.detail); }
 }
 
-async function deleteProduct(id) {
-  if (!confirm('确认下架该商品？')) return;
-  await API(`/shop/admin/products/${id}`, {method:'DELETE'});
-  loadProducts();
+async function deleteProduct(id, name) {
+  if (!confirm(`⚠️ 永久删除\n\n"${name}" 及其全部库存将被永久删除，无法恢复！\n\n确认删除？`)) return;
+  const res = await API(`/shop/admin/products/${id}`, {method:'DELETE'});
+  if (res.status === 'ok') { alert(res.message); loadProducts(); }
+  else { alert(res.detail || '删除失败'); }
+}
+
+async function toggleProduct(id) {
+  const res = await API(`/shop/admin/products/${id}/toggle`, {method:'PUT'});
+  if (res.status === 'ok') { loadProducts(); }
+  else { alert(res.detail || '操作失败'); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -976,73 +1621,170 @@ async function deleteProduct(id) {
 // ═══════════════════════════════════════════════════
 let invProductId = 0;
 
+let invState = { product_id: 0, status: '', search: '', page: 1, total: 0, selected: new Set() };
+
 async function renderAdminInventory() {
   const mc = document.getElementById('mainContent');
-  let html = `<h3 style="color:#d2991d;margin-bottom:16px;">🗄️ 库存管理</h3>`;
+  const prodRes = await API('/shop/admin/products');  const products = prodRes.products || [];
+  invState.product_id = products[0]?.id || 0;
+  invState.page = 1;
+  invState.selected = new Set();
 
-  // Load products for dropdown
-  const prodRes = await API('/shop/products');
-  const products = prodRes.products || [];
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">🗄️ 库存管理</h3>';
 
-  html += `<div class="card">
-    <h3>批量导入库存</h3>
+  html += `<div class="card"><h3>批量导入库存</h3>
     <div class="form-group"><label>目标商品</label><select id="invProduct">${products.map(p => `<option value="${p.id}">${p.name} (库存:${p.available||0})</option>`).join('')}</select></div>
-    <div class="form-group">
-      <label>粘贴数据 (每行: 账号----密码----恢复邮箱)</label>
-      <textarea id="invData" placeholder="user@domain.com----password123----recovery@mail.com&#10;user2@domain.com----pass456----"></textarea>
-    </div>
+    <div class="form-group"><label>粘贴数据 (每行: 账号----密码----恢复邮箱)</label>
+      <textarea id="invData" placeholder="user@domain.com----password123----recovery@mail.com&#10;user2@domain.com----pass456----"></textarea></div>
     <button class="btn btn-primary" onclick="importInventory()">导入</button>
-    <div id="invResult" class="mt-16"></div>
-  </div>`;
+    <div id="invResult" class="mt-16"></div></div>`;
 
-  html += `<div class="card">
-    <div class="flex gap-8 mb-16" style="justify-content:space-between;align-items:center;">
-      <h3 style="margin:0;">库存列表</h3>
-      <div class="flex gap-8">
-        <select id="invFilterProduct" onchange="loadInventory()">${products.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
-        <select id="invFilterStatus" onchange="loadInventory()"><option value="">全部</option><option value="available">可售</option><option value="sold">已售</option></select>
-        <button class="btn btn-sm" onclick="loadInventory()">🔄</button>
-      </div>
+  html += `<div class="card"><h3 style="margin:0 0 12px;">库存列表</h3>
+    <div class="batch-toolbar">
+      <select id="invFilterProduct" onchange="invState.product_id=this.value;invState.page=1;invState.selected.clear();loadInventory();">${products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select>
+      <select id="invFilterStatus" onchange="invState.status=this.value;invState.page=1;invState.selected.clear();loadInventory();"><option value="">全部状态</option><option value="available">可售</option><option value="sold">已售</option></select>
+      <input type="text" id="invSearch" placeholder="搜索账号/密码/邮箱" onkeydown="if(event.key==='Enter'){invState.search=this.value;invState.page=1;loadInventory();}">
+      <button class="btn btn-sm btn-primary" onclick="invState.search=document.getElementById('invSearch').value;invState.page=1;loadInventory();">🔍</button>
+      <span style="flex:1;"></span>
+      <button class="btn btn-sm" onclick="invSelectAll()">☑️ 全选</button>
+      <button class="btn btn-sm" onclick="invSelectNone()">⬜ 取消</button>
+      <span style="color:#d2991d;font-size:12px;" id="invSelCount">已选 0 条</span>
+      <button class="btn btn-sm btn-primary" onclick="invBatchAction('set_status','available')">✅ 标记可售</button>
+      <button class="btn btn-sm" onclick="invBatchAction('set_status','sold')">❌ 标记已售</button>
+      <button class="btn btn-sm btn-danger" onclick="invBatchAction('delete')">🗑️ 删除选中</button>
     </div>
     <div id="invList"><p style="color:#8b949e;">加载中...</p></div>
-  </div>`;
+    <div id="invPagination"></div></div>`;
 
   mc.innerHTML = html;
-  invProductId = products[0]?.id || 0;
   document.getElementById('invProduct').onchange = function() { invProductId = parseInt(this.value); };
-  setTimeout(loadInventory, 100);
+  loadInventory();
+}
+
+async function loadInventory() {
+  const { product_id, status, search, page } = invState;
+  let url = `/shop/admin/inventory?product_id=${product_id}&status=${status}&page=${page}&page_size=50`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  const res = await API(url);
+  invState.total = res.total || 0;
+  const items = res.items || [];
+  const soldCnt = res.sold || 0;
+  const availCnt = res.available || 0;
+  let html = `<p style="color:#8b949e;margin-bottom:8px;">共 ${invState.total} 条 | <span style="color:#3fb950;">可售 ${availCnt}</span> | <span style="color:#f85149;">已售 ${soldCnt}</span></p>`;
+  html += '<table class="table"><thead><tr><th class="check-cell"><input type="checkbox" onchange="invToggleAll(this)" id="invCheckAll"></th><th>序号</th><th>账号</th><th>密码</th><th>恢复邮箱</th><th>状态</th><th>买家 / 订单</th><th>操作</th></tr></thead><tbody>';
+  items.forEach((i, idx) => {
+    const rowNum = (invState.page - 1) * 50 + idx + 1;
+    const checked = invState.selected.has(i.id) ? ' checked' : '';
+    const statusTag = i.status === 'available' ? '<span class="tag tag-green">可售</span>' : '<span class="tag tag-red">已售</span>';
+    const buyerInfo = i.status === 'sold' && i.buyer_name
+      ? `<div style="font-size:11px;"><b style="color:#e6f1ff;">${escapeHtml(i.buyer_name)}</b><br><span style="color:#8b949e;">${escapeHtml(i.order_no||'#'+i.order_id)}</span></div>`
+      : '<span style="color:#8b949e;font-size:11px;">-</span>';
+    html += `<tr>
+      <td class="check-cell"><input type="checkbox" class="row-check"${checked} onchange="invToggle(${i.id}, this)" id="chk_inv_${i.id}"></td>
+      <td style="color:#8b949e;font-size:11px;">${rowNum}</td>
+      <td style="font-family:monospace;font-size:12px;cursor:pointer;" onclick="copyInvCell(this)" title="点击复制">${escapeHtml(i.account)}</td>
+      <td style="font-family:monospace;font-size:12px;cursor:pointer;" onclick="copyInvCell(this)" title="点击复制">${escapeHtml(i.password)}</td>
+      <td style="font-size:12px;">${escapeHtml(i.recovery_email||'-')}</td>
+      <td>${statusTag}</td>
+      <td>${buyerInfo}</td>
+      <td><button class="btn btn-sm" onclick="copyInvRow(${i.id},'${escapeJs(i.account)}','${escapeJs(i.password)}','${escapeJs(i.recovery_email||'')}')">📋</button></td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('invList').innerHTML = html;
+
+  // Pagination
+  const totalPages = Math.ceil(invState.total / 50);
+  let pageHtml = '';
+  if (totalPages > 1) {
+    pageHtml += '<div class="pagination">';
+    pageHtml += `<button class="page-btn" onclick="invGoPage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>‹</button>`;
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || Math.abs(i - page) <= 2)
+        pageHtml += `<button class="page-btn${i === page ? ' active' : ''}" onclick="invGoPage(${i})">${i}</button>`;
+      else if (i === 2 || i === totalPages - 1) pageHtml += '<span class="page-info">...</span>';
+    }
+    pageHtml += `<button class="page-btn" onclick="invGoPage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>›</button>`;
+    pageHtml += `<span class="page-info">共 ${invState.total} 条</span></div>`;
+  }
+  document.getElementById('invPagination').innerHTML = pageHtml;
+}
+
+function _invGetChecked() {
+  const ids = [];
+  document.querySelectorAll('#invList .row-check').forEach(c => { if (c.checked) ids.push(parseInt(c.id.replace('chk_inv_',''))); });
+  return ids;
+}
+function _invUpdateCount() {
+  const cnt = _invGetChecked().length;
+  const el = document.getElementById('invSelCount');
+  if (el) el.textContent = '已选 ' + cnt + ' 条';
+}
+
+function invToggle(id, cb) {
+  if (cb.checked) invState.selected.add(id);
+  else invState.selected.delete(id);
+  _invUpdateCount();
+}
+function invToggleAll(cb) {
+  document.querySelectorAll('#invList .row-check').forEach(c => {
+    c.checked = cb.checked;
+    const cid = parseInt(c.id.replace('chk_inv_',''));
+    if (cb.checked) invState.selected.add(cid);
+    else invState.selected.delete(cid);
+  });
+  if (!cb.checked) invState.selected.clear();
+  _invUpdateCount();
+}
+function invSelectAll() {
+  document.querySelectorAll('#invList .row-check').forEach(c => {
+    c.checked = true;
+    invState.selected.add(parseInt(c.id.replace('chk_inv_','')));
+  });
+  document.getElementById('invCheckAll').checked = true;
+  _invUpdateCount();
+}
+function invSelectNone() {
+  document.querySelectorAll('#invList .row-check').forEach(c => { c.checked = false; });
+  invState.selected.clear();
+  document.getElementById('invCheckAll').checked = false;
+  _invUpdateCount();
+}
+
+async function invBatchAction(action, status = '') {
+  const ids = _invGetChecked();
+  if (!ids.length) { alert('请先勾选要操作的记录'); return; }
+  const label = action === 'delete' ? '删除' : (status === 'available' ? '标记可售' : '标记已售');
+  if (!confirm(`确认${label} ${ids.length} 条记录？此操作不可撤销。`)) return;
+  const body = { ids, action };
+  if (status) body.status = status;
+  try {
+    const res = await API('/shop/admin/inventory/batch', { method: 'POST', body: JSON.stringify(body) });
+    if (res.status === 'ok') { loadInventory(); alert(res.message); }
+    else { alert('操作失败: ' + (res.detail || '未知错误')); }
+  } catch(e) { alert('网络错误: ' + (e.message || '请重试')); }
+}
+
+function invGoPage(p) {
+  const tp = Math.ceil(invState.total / 50);
+  if (p < 1 || p > tp) return;
+  invState.page = p; invState.selected.clear(); loadInventory();
+}
+
+function copyInvCell(el) { navigator.clipboard.writeText(el.textContent).then(() => { const orig = el.textContent; el.textContent = '✅ 已复制'; setTimeout(() => el.textContent = orig, 1000); }); }
+function copyInvRow(id, account, password, recovery) {
+  const txt = `账号: ${account}\n密码: ${password}${recovery ? '\n辅助邮箱: ' + recovery : ''}`;
+  navigator.clipboard.writeText(txt).then(() => alert('已复制'));
 }
 
 async function importInventory() {
   const data = document.getElementById('invData').value.trim();
   if (!data) { alert('请粘贴数据'); return; }
-  const product_id = invProductId;
-  const res = await API('/shop/admin/inventory/import', {method:'POST', body:JSON.stringify({product_id, data})});
-  if (res.status === 'ok') {
-    document.getElementById('invResult').innerHTML = `<div class="alert alert-success">${res.message}${res.errors?.length ? '<br>错误: '+res.errors.join('<br>') : ''}</div>`;
-    document.getElementById('invData').value = '';
-    loadInventory();
-  } else {
-    document.getElementById('invResult').innerHTML = `<div class="alert alert-error">${res.detail}</div>`;
-  }
-}
-
-async function loadInventory() {
-  const product_id = document.getElementById('invFilterProduct')?.value || 0;
-  const status = document.getElementById('invFilterStatus')?.value || '';
-  const res = await API(`/shop/admin/inventory?product_id=${product_id}&status=${status}&page_size=100`);
-  let html = `<p style="color:#8b949e;margin-bottom:8px;">共 ${res.total||0} 条</p>`;
-  html += '<table class="table"><thead><tr><th>ID</th><th>账号</th><th>密码</th><th>恢复邮箱</th><th>状态</th><th>售出时间</th></tr></thead><tbody>';
-  (res.items||[]).forEach(i => {
-    const statusTag = i.status === 'available' ? '<span class="tag tag-green">可售</span>' : '<span class="tag tag-red">已售</span>';
-    html += `<tr>
-      <td>${i.id}</td><td style="font-family:monospace;font-size:12px;">${i.account}</td>
-      <td style="font-family:monospace;font-size:12px;">${i.password}</td>
-      <td style="font-size:12px;">${i.recovery_email||'-'}</td>
-      <td>${statusTag}</td><td>${i.sold_at||'-'}</td></tr>`;
-  });
-  html += '</tbody></table>';
-  document.getElementById('invList').innerHTML = html;
+  const product_id = invProductId || invState.product_id;
+  const res = await API('/shop/admin/inventory/import', { method: 'POST', body: JSON.stringify({ product_id, data }) });
+  document.getElementById('invResult').innerHTML = res.status === 'ok'
+    ? `<div class="alert alert-success">${res.message}${res.errors?.length ? '<br>错误: '+res.errors.join('<br>') : ''}</div>`
+    : `<div class="alert alert-error">${res.detail}</div>`;
+  if (res.status === 'ok') { document.getElementById('invData').value = ''; loadInventory(); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -1053,24 +1795,22 @@ function renderSettings() {
   const vl = currentUser.vip_level || 'normal';
   const badge = VIP_BADGES[vl] || '';
   const vcls = VIP_CLASSES[vl] || '';
+  const inviteCode = currentUser.invite_code || '';
+  // 生成邀请链接（当前域名 + 注册页带上邀请码参数）
+  const inviteLink = inviteCode ? `${location.origin}/shop?ref=${inviteCode}` : '';
   mc.innerHTML = `
     <div class="card"><h3>👤 个人中心</h3>
       <div class="form-group"><label>用户名</label><input type="text" value="${currentUser.username}" readonly style="background:#1c2128;"></div>
       <div class="form-group"><label>邮箱</label><input type="text" value="${currentUser.email||'未设置'}" readonly style="background:#1c2128;"></div>
       <div class="form-group"><label>VIP 等级</label><input type="text" value="${badge} ${vl.toUpperCase()}" readonly style="background:#1c2128;color:#ffd700;font-weight:bold;"></div>
       <div class="form-group"><label>我的邀请码</label>
-        <div class="setting-row"><input type="text" id="myInviteCode" value="${currentUser.invite_code||''}" readonly style="flex:1;background:#1c2128;font-family:monospace;font-size:15px;letter-spacing:2px;"><button class="btn btn-primary btn-sm" onclick="document.getElementById('myInviteCode').select();document.execCommand('copy');alert('已复制！')">📋 复制</button></div>
+        <div class="setting-row"><input type="text" id="myInviteCode" value="${inviteCode}" readonly style="flex:1;background:#1c2128;font-family:monospace;font-size:15px;letter-spacing:2px;"><button class="btn btn-primary btn-sm" onclick="document.getElementById('myInviteCode').select();document.execCommand('copy');alert('已复制！')">📋 复制</button></div>
       </div>
+      ${inviteLink ? `<div class="form-group"><label>邀请链接</label>
+        <div class="setting-row"><input type="text" id="myInviteLink" value="${inviteLink}" readonly style="flex:1;background:#1c2128;font-size:12px;"><button class="btn btn-primary btn-sm" onclick="document.getElementById('myInviteLink').select();document.execCommand('copy');alert('邀请链接已复制！')">📋 复制链接</button></div>
+      </div>` : ''}
       <div class="form-group"><label>已邀请人数</label><input type="text" value="${currentUser.invite_count||0} 人" readonly style="background:#1c2128;"></div>
       <button class="btn btn-primary" onclick="openPwd()">🔑 修改密码</button>
-    </div>
-    <div class="card"><h3>🏆 VIP 等级说明</h3>
-      <table class="table"><thead><tr><th>等级</th><th>邀请要求</th><th>购买折扣</th></tr></thead><tbody>
-        <tr><td>⚪ 普通用户</td><td>-</td><td>可参与折扣活动</td></tr>
-        <tr><td style="color:#cd7f32;">🥉 VIP 1</td><td>邀请1人</td><td>享VIP固定价</td></tr>
-        <tr><td style="color:#c0c0c0;">🥈 VIP 2</td><td>邀请5人</td><td>享VIP固定价</td></tr>
-        <tr><td style="color:#ffd700;">🥇 SVIP</td><td>邀请20人</td><td>享VIP固定价</td></tr>
-      </tbody></table>
     </div>`;
 }
 
@@ -1106,29 +1846,105 @@ async function doChangePwd() {
 // ═══════════════════════════════════════════════════
 // Admin Users
 // ═══════════════════════════════════════════════════
+let userState = { selected: new Set() };
+
 async function renderAdminUsers() {
   const mc = document.getElementById('mainContent');
   mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
   const res = await API('/shop/admin/users');
   const users = res.users || [];
+  userState.selected = new Set();
+
   let html = '<h3 style="color:#d2991d;margin-bottom:16px;">👥 用户管理</h3>';
-  html += '<table class="table"><thead><tr><th>ID</th><th>用户名</th><th>邮箱</th><th>余额</th><th>VIP</th><th>消费</th><th>邀请</th><th>注册</th><th>操作</th></tr></thead><tbody>';
+
+  // Batch toolbar
+  html += '<div class="card" style="padding:12px 16px;"><div class="batch-toolbar">';
+  html += '<span style="font-size:13px;color:#8b949e;">批量修改余额：</span>';
+  html += '<select id="batchBalAction"><option value="add">增加</option><option value="subtract">扣除</option><option value="set">设为</option></select>';
+  html += '<span style="color:#8b949e;">金额</span><input type="number" id="batchBalAmount" value="0" min="0" step="0.01">';
+  html += '<span style="color:#8b949e;">原因</span><input type="text" id="batchBalReason" placeholder="批量操作">';
+  html += '<button class="btn btn-primary btn-sm" onclick="batchUserBalance()">执行</button>';
+  html += '<span style="margin-left:8px;font-size:11px;color:#8b949e;">已选: <b id="batchSelCount">0</b> 人</span>';
+  html += '</div></div>';
+
+  // Table
+  html += '<table class="table"><thead><tr><th class="check-cell"><input type="checkbox" onchange="userToggleAll(this)" id="userCheckAll"></th>';
+  html += '<th>ID</th><th>用户名</th><th>邮箱</th><th>余额</th><th>VIP</th><th>消费</th><th>邀请</th><th>注册</th><th>操作</th></tr></thead><tbody>';
   users.forEach(u => {
     const vBadge = VIP_BADGES[u.vip_level] || '';
-    html += `<tr><td>${u.id}</td><td>${u.username}</td><td style="font-size:12px;">${u.email||'-'}</td>
-      <td>¥${(u.balance||0).toFixed(2)}</td><td>${vBadge} ${u.vip_level||'normal'}</td>
+    html += `<tr>
+      <td class="check-cell"><input type="checkbox" class="row-check" onchange="userToggle(${u.id}, this)" id="uchk_${u.id}"></td>
+      <td>${u.id}</td><td>${escapeHtml(u.username)}</td><td style="font-size:12px;">${escapeHtml(u.email||'-')}</td>
+      <td>¥${(u.balance||0).toFixed(2)}</td><td>${vBadge} ${escapeHtml(u.vip_level||'normal')}</td>
       <td>¥${(u.total_spent_calc||0).toFixed(2)}</td><td>${u.invite_count||0}</td>
       <td style="font-size:11px;">${u.created_at||''}</td>
-      <td><button class="btn btn-sm" onclick="adminUserDetail(${u.id},'${u.username}','${u.vip_level||'normal'}')">管理</button></td></tr>`;
+      <td>
+        <button class="btn btn-sm" onclick="openUserBalanceModal(${u.id},'${escapeJs(u.username)}',${(u.balance||0).toFixed(2)})">💰</button>
+        <button class="btn btn-sm" onclick="adminUserDetail(${u.id},'${escapeJs(u.username)}','${escapeJs(u.vip_level||'normal')}')">⚙️</button>
+      </td></tr>`;
   });
   html += '</tbody></table>';
   mc.innerHTML = html;
 }
 
+function userToggle(id, cb) {
+  if (cb.checked) userState.selected.add(id); else userState.selected.delete(id);
+  document.getElementById('batchSelCount').textContent = userState.selected.size;
+}
+function userToggleAll(cb) {
+  document.querySelectorAll('[id^="uchk_"]').forEach(c => {
+    c.checked = cb.checked;
+    const id = parseInt(c.id.replace('uchk_',''));
+    if (cb.checked) userState.selected.add(id); else userState.selected.delete(id);
+  });
+  document.getElementById('batchSelCount').textContent = userState.selected.size;
+}
+
+async function batchUserBalance() {
+  const ids = Array.from(userState.selected);
+  if (!ids.length) { alert('请先勾选用户'); return; }
+  const action = document.getElementById('batchBalAction').value;
+  const amount = parseFloat(document.getElementById('batchBalAmount').value) || 0;
+  const reason = document.getElementById('batchBalReason').value.trim();
+  if (amount < 0) { alert('金额不能为负数'); return; }
+  if (amount === 0 && action !== 'set') { alert('金额必须大于0'); return; }
+  if (!confirm(`确认对 ${ids.length} 个用户${action === 'add' ? '增加' : action === 'subtract' ? '扣除' : '设为'} ${amount.toFixed(2)} 元？`)) return;
+  const res = await API('/shop/admin/users/batch/balance', { method: 'POST', body: JSON.stringify({ ids, action, amount, reason }) });
+  if (res.status === 'ok') { userState.selected.clear(); renderAdminUsers(); alert(res.message); }
+  else alert(res.detail || '操作失败');
+}
+
+async function openUserBalanceModal(id, username, currentBalance) {
+  const overlay = document.createElement('div');
+  overlay.className = 'mini-modal show';
+  overlay.id = 'balModal';
+  overlay.innerHTML = `<div class="mini-modal-box">
+    <h4>💰 修改余额 — ${escapeHtml(username)}</h4>
+    <p style="font-size:12px;color:#8b949e;margin-bottom:8px;">当前余额: ¥${currentBalance}</p>
+    <div class="form-group"><label>新余额</label><input type="number" id="balNewAmount" value="${currentBalance}" min="0" step="0.01"></div>
+    <div class="form-group"><label>原因</label><input type="text" id="balReason" placeholder="操作原因"></div>
+    <div id="balModalMsg"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="document.getElementById('balModal').remove()">取消</button>
+      <button class="btn btn-primary" onclick="saveUserBalance(${id})">保存</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function saveUserBalance(id) {
+  const amount = parseFloat(document.getElementById('balNewAmount').value);
+  const reason = document.getElementById('balReason').value.trim();
+  if (isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
+  const res = await API(`/shop/admin/users/${id}/balance`, { method: 'PUT', body: JSON.stringify({ amount, reason }) });
+  if (res.status === 'ok') { document.getElementById('balModal').remove(); renderAdminUsers(); }
+  else alert(res.detail || '修改失败');
+}
+
 function adminUserDetail(id, username, currentVip) {
-  let html = `<h3 style="color:#58a6ff;">👤 ${username} (ID:${id})</h3>
-    <div class="card">
-      <h3>修改 VIP 等级</h3>
+  let html = `<h3 style="color:#58a6ff;">👤 ${escapeHtml(username)} (ID:${id})</h3>
+    <div class="card"><h3>修改 VIP 等级</h3>
       <select id="setVip" style="padding:8px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#c9d1d9;">
         <option value="normal" ${currentVip==='normal'?'selected':''}>普通用户</option>
         <option value="vip1" ${currentVip==='vip1'?'selected':''}>🥉 VIP 1</option>
@@ -1137,8 +1953,7 @@ function adminUserDetail(id, username, currentVip) {
       </select>
       <button class="btn btn-primary btn-sm ml-8" onclick="setUserVip(${id})">保存</button>
     </div>
-    <div class="card">
-      <h3>重置密码</h3>
+    <div class="card"><h3>重置密码</h3>
       <button class="btn btn-danger btn-sm" onclick="resetUserPwd(${id})">重置为随机密码</button>
       <span id="resetPwdResult" style="margin-left:8px;color:#3fb950;"></span>
     </div>
@@ -1148,13 +1963,13 @@ function adminUserDetail(id, username, currentVip) {
 
 async function setUserVip(id) {
   const vip = document.getElementById('setVip').value;
-  const res = await API(`/shop/admin/users/${id}`, {method:'PUT', body:JSON.stringify({vip_level:vip})});
-  alert(res.status==='ok'?res.message:res.detail);
+  const res = await API(`/shop/admin/users/${id}`, { method: 'PUT', body: JSON.stringify({ vip_level: vip }) });
+  alert(res.status === 'ok' ? res.message : res.detail);
 }
 
 async function resetUserPwd(id) {
-  const res = await API(`/shop/admin/users/${id}/reset_password`, {method:'POST'});
-  if (res.status==='ok') document.getElementById('resetPwdResult').textContent = `新密码: ${res.new_password}`;
+  const res = await API(`/shop/admin/users/${id}/reset_password`, { method: 'POST' });
+  if (res.status === 'ok') document.getElementById('resetPwdResult').textContent = `新密码: ${res.new_password}`;
   else alert(res.detail);
 }
 
@@ -1219,7 +2034,7 @@ async function deletePromo(id) { await API(`/shop/admin/promo_codes/${id}`, {met
 // ═══════════════════════════════════════════════════
 async function renderAdminDiscounts() {
   const mc = document.getElementById('mainContent');
-  const prods = await API('/shop/products');
+  const prods = await API('/shop/admin/products');
   let html = '<h3 style="color:#d2991d;margin-bottom:16px;">📉 批量折扣管理</h3>';
   html += `<div class="card"><h3>创建折扣规则</h3>
     <div class="flex gap-8 flex-wrap">
@@ -1269,7 +2084,7 @@ async function deleteQtyDiscount(id) { await API(`/shop/admin/quantity_discounts
 // ═══════════════════════════════════════════════════
 async function renderAdminVip() {
   const mc = document.getElementById('mainContent');
-  const prods = await API('/shop/products');
+  const prods = await API('/shop/admin/products');
   let html = '<h3 style="color:#d2991d;margin-bottom:16px;">👑 VIP定价管理</h3>';
   html += `<div class="card"><h3>设置VIP价格</h3>
     <div class="form-group"><label>商品</label><select id="vpProduct" onchange="loadVipPrices()">${(prods.products||[]).map(p=>`<option value="${p.id}">${p.name} (原价¥${p.price.toFixed(2)})</option>`).join('')}</select></div>
@@ -1307,6 +2122,127 @@ async function saveVipPrices() {
   if (!Object.keys(prices).length) { alert('至少填一个价格'); return; }
   const res = await API('/shop/admin/vip_prices', {method:'PUT', body:JSON.stringify({product_id: pid, prices})});
   document.getElementById('vpResult').innerHTML = res.status==='ok' ? `<div class="alert alert-success">${res.message}</div>` : `<div class="alert alert-error">${res.detail}</div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// Admin: 站点配置
+// ═══════════════════════════════════════════════════
+async function renderAdminConfig() {
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
+
+  const res = await API('/shop/admin/config');
+  const cfg = res.config || {};
+
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">⚙️ 站点配置</h3>';
+  html += '<div class="card"><h3>联系客服</h3>';
+  html += '<div class="form-group"><label>QQ 号码（用户端点击直接打开QQ聊天）</label>';
+  html += `<input type="text" id="cfgQqContact" value="${cfg.qq_contact || ''}" placeholder="填写QQ号码，留空则不显示客服入口">`;
+  html += '</div>';
+  html += '<div class="form-group"><label>客服按钮文字</label>';
+  html += `<input type="text" id="cfgQqText" value="${cfg.qq_contact_text || '联系客服'}" placeholder="联系客服">`;
+  html += '</div>';
+  html += '<div id="cfgMsg"></div>';
+  html += '<button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>';
+  html += '</div>';
+
+  html += '<div class="card mt-16"><h3>站点公告</h3>';
+  html += '<div class="form-group"><label>公告内容（支持 HTML）</label>';
+  html += `<textarea id="cfgNotice" placeholder="留空则不显示公告">${cfg.site_notice || ''}</textarea>`;
+  html += '</div>';
+  html += '<button class="btn btn-primary" onclick="saveConfigNotice()">💾 保存公告</button>';
+  html += '</div>';
+
+  mc.innerHTML = html;
+}
+
+async function saveConfig() {
+  const qq = document.getElementById('cfgQqContact').value.trim();
+  const text = document.getElementById('cfgQqText').value.trim() || '联系客服';
+  let errs = [];
+
+  let res = await API('/shop/admin/config', {method:'PUT', body:JSON.stringify({key:'qq_contact', value:qq})});
+  if (res.status !== 'ok') errs.push('QQ号码保存失败');
+
+  res = await API('/shop/admin/config', {method:'PUT', body:JSON.stringify({key:'qq_contact_text', value:text})});
+  if (res.status !== 'ok') errs.push('按钮文字保存失败');
+
+  if (errs.length) {
+    document.getElementById('cfgMsg').innerHTML = `<div class="alert alert-error">${errs.join('<br>')}</div>`;
+  } else {
+    document.getElementById('cfgMsg').innerHTML = '<div class="alert alert-success">✅ 配置已保存</div>';
+    // Refresh orders state
+    ordersState.qqContact = qq;
+    setTimeout(() => { document.getElementById('cfgMsg').innerHTML = ''; }, 2000);
+  }
+}
+
+async function saveConfigNotice() {
+  const notice = document.getElementById('cfgNotice').value.trim();
+  const res = await API('/shop/admin/config', {method:'PUT', body:JSON.stringify({key:'site_notice', value:notice})});
+  alert(res.status === 'ok' ? '保存成功' : (res.detail || '保存失败'));
+}
+
+// ═══════════════════════════════════════════════════
+// Admin: 审计日志
+// ═══════════════════════════════════════════════════
+let auditState = { page: 1, total: 0 };
+
+async function renderAdminAudit() {
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '<div style="text-align:center;padding:40px;color:#8b949e;">加载中...</div>';
+  await loadAuditLog();
+}
+
+async function loadAuditLog() {
+  const res = await API(`/shop/admin/audit_log?page=${auditState.page}&page_size=50`);
+  const logs = res.logs || [];
+  auditState.total = res.total || 0;
+  const total = auditState.total;
+
+  let html = '<h3 style="color:#d2991d;margin-bottom:16px;">📝 审计日志</h3>';
+  html += '<p style="color:#8b949e;font-size:13px;margin-bottom:12px;">记录所有管理员操作（余额变更、库存变更等）</p>';
+
+  if (!logs.length) {
+    html += '<div class="empty-state"><p>暂无审计日志</p></div>';
+  } else {
+    html += '<table class="table"><thead><tr><th>时间</th><th>操作人</th><th>操作</th><th>目标</th><th>详情</th></tr></thead><tbody>';
+    logs.forEach(l => {
+      const actionLabel = { balance_set: '设置余额', balance_add: '增加余额', balance_subtract: '扣除余额',
+        batch_delete_inventory: '批量删除库存', batch_set_inventory_status: '批量改库存状态' }[l.action] || l.action;
+      const targetLabel = l.target_type === 'user' ? `用户#${l.target_id}` : l.target_type === 'inventory' ? `库存` : '';
+      html += `<tr>
+        <td style="font-size:11px;">${l.created_at||''}</td>
+        <td>${escapeHtml(l.admin_name||'#'+l.admin_id)}</td>
+        <td>${actionLabel}</td>
+        <td>${targetLabel}</td>
+        <td style="font-size:12px;">${escapeHtml(l.detail||'-')}</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    // Pagination
+    const tp = Math.ceil(total / 50);
+    if (tp > 1) {
+      html += '<div class="pagination">';
+      html += `<button class="page-btn" onclick="auditGoPage(${auditState.page - 1})" ${auditState.page <= 1 ? 'disabled' : ''}>‹</button>`;
+      for (let i = 1; i <= tp; i++) {
+        if (i === 1 || i === tp || Math.abs(i - auditState.page) <= 2)
+          html += `<button class="page-btn${i === auditState.page ? ' active' : ''}" onclick="auditGoPage(${i})">${i}</button>`;
+        else if (i === 2 || i === tp - 1) html += '<span class="page-info">...</span>';
+      }
+      html += `<button class="page-btn" onclick="auditGoPage(${auditState.page + 1})" ${auditState.page >= tp ? 'disabled' : ''}>›</button>`;
+      html += `<span class="page-info">共 ${total} 条</span></div>`;
+    }
+  }
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function auditGoPage(p) {
+  const tp = Math.ceil(auditState.total / 50);
+  if (p < 1 || p > tp) return;
+  auditState.page = p;
+  loadAuditLog();
 }
 
 // ═══════════════════════════════════════════════════
